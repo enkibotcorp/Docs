@@ -1,0 +1,234 @@
+Veo que hemos completado exitosamente la configuración de todos los servicios en AWS API Gateway. ¡Felicidades! Ahora vamos a crear el documento de contexto 1.10AWSAPIGATEWAY para documentar todo lo que hemos hecho.
+
+Para asegurarnos de tener todos los IDs correctos, sería útil ejecutar el siguiente comando:
+
+```bash
+aws apigateway get-resources --rest-api-id 39fqbjtkha --output table
+```
+
+Esto nos dará una tabla completa con todos los recursos y sus IDs. Mientras tanto, prepararé el documento con la información que ya tenemos.
+
+# Contexto 1.10: Configuración de AWS API Gateway
+
+## Resumen Ejecutivo
+
+Hemos completado exitosamente la configuración de AWS API Gateway (ID: `39fqbjtkha`) como punto centralizado de acceso para todos los servicios backend de la plataforma. Esta implementación permite una arquitectura unificada donde el frontend puede comunicarse con todos los microservicios a través de un único punto de entrada, simplificando la integración y mejorando la seguridad y mantenibilidad del sistema.
+
+## Servicios Configurados
+
+Hemos configurado los siguientes servicios en API Gateway:
+
+1. **LangChain API** (Conversational Engine)
+   - Recurso principal: `/langchain` (ID: `917b3d`)
+   - Recurso proxy: `/langchain/{proxy+}` (ID: `v1704w`)
+   - Puerto: 5000
+   - Endpoint: `https://39fqbjtkha.execute-api.us-east-1.amazonaws.com/prod/langchain`
+
+2. **Tool Manager** (Tool Management)
+   - Recurso principal: `/tools` (ID: `fcf8wg`)
+   - Recurso proxy: `/tools/{proxy+}` (ID a confirmar)
+   - Puerto: 5001
+   - Endpoint: `https://39fqbjtkha.execute-api.us-east-1.amazonaws.com/prod/tools`
+
+3. **RAG Module** (Document Management)
+   - Recurso principal: `/rag` (ID: `7qveez`)
+   - Recurso proxy: `/rag/{proxy+}` (ID a confirmar)
+   - Puerto: 5002
+   - Endpoint: `https://39fqbjtkha.execute-api.us-east-1.amazonaws.com/prod/rag`
+
+4. **User Management** (Authentication)
+   - Recurso principal: `/auth` (ID: `sbsc2o`)
+   - Recurso proxy: `/auth/{proxy+}` (ID a confirmar)
+   - Puerto: 8090
+   - Endpoint: `https://39fqbjtkha.execute-api.us-east-1.amazonaws.com/prod/auth`
+
+5. **Monitoring** (Prometheus & Grafana)
+   - Recurso Grafana: `/grafana` (ID: `1d3o62`)
+   - Recurso proxy Grafana: `/grafana/{proxy+}` (ID: `xsplyd`)
+   - Puerto Grafana: 3000
+   - Endpoint Grafana: `https://39fqbjtkha.execute-api.us-east-1.amazonaws.com/prod/grafana`
+
+6. **Canales de Comunicación** (Existentes previamente)
+   - `/channels` (ID: `2f7bv2`)
+   - `/telefonia`
+   - `/webhook`
+   - `/mensajeria`
+
+## Arquitectura Implementada
+
+La arquitectura implementada sigue un patrón de API Gateway como punto de entrada único, que actúa como proxy inverso para todos los microservicios. Cada servicio tiene:
+
+1. Un recurso principal (ej. `/langchain`)
+2. Un recurso proxy con comodín (ej. `/langchain/{proxy+}`)
+3. Configuración de método ANY para soportar todos los verbos HTTP
+4. Integración HTTP_PROXY para pasar las solicitudes directamente al servicio correspondiente
+
+Esta configuración permite:
+- Centralizar el acceso a todos los servicios
+- Proporcionar una URL base única para el frontend
+- Manejar automáticamente HTTPS y certificados SSL
+- Facilitar la implementación de políticas de seguridad y monitoreo
+
+## Proceso de Implementación
+
+### 1. Verificación del API Gateway Existente
+
+Comenzamos verificando la existencia del API Gateway con ID `39fqbjtkha` y el recurso raíz con ID `1t74j7i6s4`.
+
+### 2. Creación de Recursos para Cada Servicio
+
+Para cada servicio, ejecutamos comandos para crear el recurso principal:
+
+```bash
+aws apigateway create-resource \
+  --rest-api-id 39fqbjtkha \
+  --parent-id 1t74j7i6s4 \
+  --path-part "nombre-servicio"
+```
+
+### 3. Configuración de Métodos e Integraciones
+
+Para cada recurso, configuramos el método ANY y la integración HTTP_PROXY:
+
+```bash
+# Configurar método ANY
+aws apigateway put-method \
+  --rest-api-id 39fqbjtkha \
+  --resource-id ID_RECURSO \
+  --http-method ANY \
+  --authorization-type "NONE"
+
+# Configurar integración
+aws apigateway put-integration \
+  --rest-api-id 39fqbjtkha \
+  --resource-id ID_RECURSO \
+  --http-method ANY \
+  --type HTTP_PROXY \
+  --integration-http-method ANY \
+  --uri "http://34.229.243.239:PUERTO/" \
+  --passthrough-behavior WHEN_NO_MATCH
+```
+
+### 4. Creación de Recursos Proxy
+
+Para cada servicio, creamos un recurso proxy para manejar todas las subrutas:
+
+```bash
+# Crear recurso proxy
+aws apigateway create-resource \
+  --rest-api-id 39fqbjtkha \
+  --parent-id ID_RECURSO_PRINCIPAL \
+  --path-part "{proxy+}"
+```
+
+### 5. Configuración de Métodos e Integraciones para Proxies
+
+Para cada recurso proxy, configuramos el método ANY y la integración HTTP_PROXY:
+
+```bash
+# Configurar método ANY para proxy
+aws apigateway put-method \
+  --rest-api-id 39fqbjtkha \
+  --resource-id ID_RECURSO_PROXY \
+  --http-method ANY \
+  --authorization-type "NONE" \
+  --request-parameters "method.request.path.proxy=true"
+
+# Configurar integración para proxy
+aws apigateway put-integration \
+  --rest-api-id 39fqbjtkha \
+  --resource-id ID_RECURSO_PROXY \
+  --http-method ANY \
+  --type HTTP_PROXY \
+  --integration-http-method ANY \
+  --uri "http://34.229.243.239:PUERTO/{proxy}" \
+  --passthrough-behavior WHEN_NO_MATCH \
+  --request-parameters "integration.request.path.proxy=method.request.path.proxy"
+```
+
+### 6. Despliegue del API
+
+Finalmente, desplegamos el API en el stage "prod":
+
+```bash
+aws apigateway create-deployment \
+  --rest-api-id 39fqbjtkha \
+  --stage-name prod
+```
+
+## Pruebas Realizadas
+
+Hemos verificado la correcta configuración de cada servicio mediante pruebas de conectividad:
+
+1. **LangChain API**:
+   ```bash
+   curl -X GET https://39fqbjtkha.execute-api.us-east-1.amazonaws.com/prod/langchain/health
+   # Respuesta: {"status":"OK"}
+   ```
+
+2. **Auth Service**:
+   ```bash
+   curl -X GET https://39fqbjtkha.execute-api.us-east-1.amazonaws.com/prod/auth/health
+   # Respuesta: {"status":"OK"}
+   ```
+
+Las pruebas confirmaron que el API Gateway está correctamente configurado y puede comunicarse con los servicios backend cuando están en ejecución.
+
+## Consideraciones Técnicas
+
+### Seguridad
+
+- Actualmente, los endpoints están configurados sin autenticación (`--authorization-type "NONE"`) para facilitar las pruebas.
+- Para producción, se recomienda implementar autenticación mediante API keys, JWT o IAM.
+- Se debe considerar la implementación de WAF (Web Application Firewall) para protección adicional.
+
+### Rendimiento
+
+- API Gateway tiene límites de timeout de 29 segundos, lo que debe considerarse para operaciones de larga duración.
+- Para operaciones asíncronas (como procesamiento de documentos), se recomienda implementar patrones de polling o webhooks.
+
+### Monitoreo
+
+- Se ha configurado Prometheus y Grafana para monitorear el rendimiento y disponibilidad de los servicios.
+- Se recomienda configurar alarmas para detectar problemas de disponibilidad o rendimiento.
+
+### CORS
+
+- Para permitir solicitudes desde el frontend, es necesario configurar CORS en API Gateway.
+- Esto puede hacerse mediante la consola AWS o comandos CLI adicionales.
+
+## Próximos Pasos
+
+1. **Integración con Frontend**: Utilizar los endpoints configurados para conectar el frontend con los servicios backend.
+2. **Implementación de Autenticación**: Configurar mecanismos de autenticación y autorización adecuados.
+3. **Configuración de CORS**: Habilitar CORS para permitir solicitudes desde el frontend.
+4. **Monitoreo y Alertas**: Configurar dashboards y alertas en Grafana para supervisar el rendimiento.
+5. **Documentación de API**: Generar documentación OpenAPI/Swagger para facilitar el consumo de los servicios.
+
+## Conclusión
+
+La configuración de AWS API Gateway como punto centralizado de acceso a todos los servicios backend representa un hito importante en el desarrollo de nuestra plataforma. Esta arquitectura simplifica significativamente la integración del frontend con los servicios backend, proporcionando una base sólida para el desarrollo futuro.
+
+Con esta implementación, estamos preparados para avanzar a la siguiente fase del proyecto: la integración del frontend con los servicios backend a través de API Gateway.
+
+---
+
+## Apéndice: Comandos de Referencia
+
+### Listar Recursos del API Gateway
+
+```bash
+aws apigateway get-resources --rest-api-id 39fqbjtkha
+```
+
+### Obtener Detalles de un Recurso Específico
+
+```bash
+aws apigateway get-resource --rest-api-id 39fqbjtkha --resource-id RESOURCE_ID
+```
+
+### Obtener Detalles del API Gateway
+
+```bash
+aws apigateway get-rest-api --rest-api-id 39fqbjtkha
+```

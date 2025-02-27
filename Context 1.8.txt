@@ -1,0 +1,389 @@
+# Guía Completa para Implementación del Frontend en Bubble.io - Fase 1.8
+
+Estimado colega,
+
+Te comparto una guía detallada para implementar el frontend de nuestra plataforma utilizando Bubble.io, basada en nuestros avances actuales y el documento de contexto para la Fase 1.8. Hemos completado con éxito la implementación de todos los servicios backend críticos (LangChain, Tool Manager, RAG Module y User Management), y ahora es el momento de desarrollar la interfaz de usuario que permitirá a nuestros clientes interactuar con estos servicios de manera intuitiva y efectiva.
+
+## Contexto del Proyecto y Estado Actual
+
+Como puedes ver en el diagrama de arquitectura y los documentos de contexto anteriores, hemos logrado implementar:
+
+1. **Motor Conversacional (LangChain)**: Backend de selección que gestiona diferentes modelos (GPT-4o mini, Gemini, Llama 3) y coordina funcionalidades de contexto, consultas y herramientas.
+
+2. **Tool Manager**: Servicio completamente funcional que gestiona el CRUD de herramientas con persistencia en PostgreSQL, manteniendo el aislamiento multi-tenant.
+
+3. **Módulo RAG**: Servicio de Retrieval-Augmented Generation implementado y verificado, que permite enriquecer las respuestas de los agentes con información contextual extraída de documentos.
+
+4. **User Management**: Sistema de gestión de usuarios y roles que garantiza el aislamiento de datos y la asignación de permisos en un entorno multi-tenant.
+
+5. **Canales de Comunicación**: Adaptadores para WhatsApp, Telegram, Email y Telefonía, además de AWS SQS para mensajería asíncrona.
+
+6. **Infraestructura AWS**: Configuración completa incluyendo instancias EC2, API Gateway, y servicios de monitorización (Prometheus, Grafana).
+
+Las pruebas han confirmado que todos estos servicios funcionan correctamente de manera individual y en conjunto, manteniendo el aislamiento de datos entre diferentes tenants y proporcionando las funcionalidades esperadas.
+
+## Tu Misión: Implementar el Frontend en Bubble.io
+
+El frontend en Bubble.io es la pieza final para completar nuestro MVP. Este componente permitirá a usuarios no técnicos configurar y gestionar agentes conversacionales, herramientas, documentos y canales de comunicación a través de una interfaz visual intuitiva.
+
+### 1. Objetivos Específicos del Frontend
+
+- Desarrollar una interfaz visual completa en Bubble.io que se integre con todos los servicios backend
+- Implementar flujos de trabajo para la configuración y gestión de agentes, herramientas y documentos
+- Crear paneles de administración para la gestión de usuarios y roles
+- Diseñar dashboards para la visualización de métricas y estadísticas
+- Garantizar una experiencia de usuario intuitiva y responsive
+
+### 2. Arquitectura y Componentes
+
+#### 2.1 Componentes Principales
+
+- **Panel de Administración**: Interfaz principal para la gestión de todos los aspectos de la plataforma
+- **Editor de Agentes**: Interfaz para crear y configurar agentes conversacionales
+- **Gestor de Herramientas**: Interfaz para crear, editar y asignar herramientas a agentes
+- **Gestor de Documentos**: Interfaz para cargar, visualizar y gestionar documentos para RAG
+- **Configuración de Canales**: Interfaz para configurar y gestionar canales de comunicación
+- **Gestión de Usuarios**: Interfaz para administrar usuarios, roles y permisos
+- **Dashboard de Analíticas**: Visualización de métricas y estadísticas de uso
+
+#### 2.2 Flujo de Datos
+
+1. **Autenticación y Autorización**:
+   - Usuario accede a la plataforma → Autenticación con Auth0 → Verificación de permisos → Acceso a funcionalidades según rol
+
+2. **Configuración de Agentes**:
+   - Usuario crea agente → Configura prompts y personalidad → Selecciona modelo de lenguaje → Asigna herramientas → Configura canales → Guarda configuración en backend
+
+3. **Gestión de Herramientas**:
+   - Usuario crea herramienta → Define parámetros y endpoint → Configura autenticación → Guarda en Tool Manager → Asigna a agentes
+
+4. **Gestión de Documentos**:
+   - Usuario carga documento → Frontend envía a RAG Module → Visualiza estado de procesamiento → Gestiona documentos existentes
+
+5. **Visualización de Analíticas**:
+   - Frontend consulta métricas → Muestra dashboards interactivos → Usuario filtra por fecha, agente, canal, etc.
+
+### 3. Implementación en Bubble.io
+
+#### 3.1 Estructura de la Aplicación
+
+1. **Páginas Principales**:
+   - Dashboard (Home)
+   - Agentes (listado y editor)
+   - Herramientas (listado y editor)
+   - Documentos (listado y uploader)
+   - Canales (configuración)
+   - Usuarios y Roles (administración)
+   - Analíticas (dashboards)
+   - Configuración (ajustes generales)
+
+2. **Tipos de Datos**:
+   - Agente (nombre, descripción, modelo, prompt, herramientas asignadas)
+   - Herramienta (nombre, descripción, endpoint, parámetros, autenticación)
+   - Documento (título, descripción, archivo, estado, metadatos)
+   - Canal (tipo, configuración, credenciales)
+   - Usuario (email, nombre, rol, tenant)
+   - Rol (nombre, permisos)
+
+3. **Flujos de Trabajo**:
+   - Registro y onboarding de nuevos tenants
+   - Creación y configuración de agentes
+   - Gestión del ciclo de vida de herramientas
+   - Procesamiento y gestión de documentos
+   - Asignación de roles y permisos
+
+#### 3.2 Integración con APIs
+
+1. **Configuración de API Connector**:
+   - Definir endpoints para cada servicio (LangChain, Tool Manager, RAG, User Management)
+   - Configurar autenticación y headers (incluyendo X-Tenant-ID)
+   - Establecer manejo de errores y reintentos
+
+2. **Llamadas a APIs**:
+   - GET/POST/PUT/DELETE para operaciones CRUD en cada servicio
+   - Manejo de respuestas asíncronas (especialmente para procesamiento de documentos)
+   - Implementación de polling para verificar estados (ej. procesamiento de documentos)
+
+3. **Autenticación con Auth0**:
+   - Integrar Auth0 para login/registro
+   - Configurar roles y permisos
+   - Implementar flujos de SSO si es necesario
+
+#### 3.3 Diseño de Interfaz
+
+1. **Sistema de Diseño**:
+   - Paleta de colores consistente
+   - Biblioteca de componentes reutilizables
+   - Patrones de interacción coherentes
+   - Soporte para temas claro/oscuro
+
+2. **Responsive Design**:
+   - Adaptación a diferentes tamaños de pantalla
+   - Experiencia optimizada para móvil y tablet
+   - Comportamiento adecuado en diferentes navegadores
+
+3. **Accesibilidad**:
+   - Contraste adecuado
+   - Etiquetas para lectores de pantalla
+   - Navegación por teclado
+   - Cumplimiento de estándares WCAG
+
+### 4. Implementación Detallada
+
+#### 4.1 Dashboard Principal
+
+1. **Widgets de Resumen**:
+   - Número de agentes activos
+   - Herramientas disponibles
+   - Documentos procesados
+   - Interacciones recientes
+   - Alertas y notificaciones
+
+2. **Accesos Rápidos**:
+   - Crear nuevo agente
+   - Subir documento
+   - Configurar canal
+   - Ver analíticas
+
+3. **Actividad Reciente**:
+   - Últimas conversaciones
+   - Cambios en configuración
+   - Alertas de rendimiento
+
+#### 4.2 Editor de Agentes
+
+1. **Formulario de Creación/Edición**:
+   - Información básica (nombre, descripción, avatar)
+   - Selección de modelo de lenguaje
+   - Editor de prompts con plantillas
+   - Asignación de herramientas (multiselect)
+   - Configuración de canales
+
+2. **Previsualización**:
+   - Simulador de conversación
+   - Prueba de herramientas
+   - Verificación de contexto RAG
+
+3. **Configuración Avanzada**:
+   - Ajustes de temperatura y tokens
+   - Configuración de fallbacks
+   - Reglas de enrutamiento
+   - Programación de disponibilidad
+
+#### 4.3 Gestor de Herramientas
+
+1. **Listado de Herramientas**:
+   - Filtrado y búsqueda
+   - Acciones rápidas (editar, eliminar, duplicar)
+   - Indicadores de uso (qué agentes usan cada herramienta)
+
+2. **Editor de Herramientas**:
+   - Información básica (nombre, descripción, icono)
+   - Configuración de endpoint (URL, método HTTP)
+   - Editor de parámetros (nombre, tipo, requerido, descripción)
+   - Configuración de autenticación (API key, OAuth, etc.)
+   - Ejemplos de uso
+
+3. **Prueba de Herramientas**:
+   - Interfaz para probar la herramienta con valores de ejemplo
+   - Visualización de respuesta
+   - Logs de ejecución
+
+#### 4.4 Gestor de Documentos
+
+1. **Uploader de Documentos**:
+   - Drag & drop de archivos
+   - Formulario de metadatos (título, descripción, tags)
+   - Barra de progreso de procesamiento
+   - Notificaciones de estado
+
+2. **Listado de Documentos**:
+   - Filtrado por estado, tipo, fecha
+   - Previsualización de contenido
+   - Acciones (descargar, eliminar, actualizar)
+
+3. **Detalles de Documento**:
+   - Metadatos completos
+   - Visualización de chunks generados
+   - Historial de uso en consultas
+   - Estadísticas de relevancia
+
+#### 4.5 Configuración de Canales
+
+1. **Selector de Canales**:
+   - WhatsApp Business API
+   - Telegram Bot
+   - Email (SMTP/IMAP)
+   - Telefonía (Twilio)
+
+2. **Formularios de Configuración**:
+   - Credenciales específicas por canal
+   - Opciones de formato de mensajes
+   - Configuración de webhooks
+   - Horarios de disponibilidad
+
+3. **Estado y Monitoreo**:
+   - Indicadores de estado de conexión
+   - Logs de mensajes recientes
+   - Alertas de problemas
+
+#### 4.6 Gestión de Usuarios y Roles
+
+1. **Listado de Usuarios**:
+   - Filtrado y búsqueda
+   - Acciones (editar, desactivar, eliminar)
+   - Indicadores de actividad
+
+2. **Editor de Usuario**:
+   - Información básica (nombre, email, teléfono)
+   - Asignación de rol
+   - Permisos específicos (override)
+   - Historial de actividad
+
+3. **Configuración de Roles**:
+   - Creación y edición de roles
+   - Matriz de permisos por módulo
+   - Herencia de permisos
+
+#### 4.7 Analíticas y Reportes
+
+1. **Dashboard de Métricas**:
+   - Conversaciones por canal/agente
+   - Uso de herramientas
+   - Consultas a documentos
+   - Tiempos de respuesta
+
+2. **Reportes Detallados**:
+   - Exportación a CSV/Excel
+   - Programación de reportes
+   - Filtros avanzados
+
+3. **Análisis de Conversaciones**:
+   - Sentimiento y satisfacción
+   - Temas frecuentes
+   - Puntos de fricción
+
+### 5. Consideraciones Técnicas Críticas
+
+#### 5.1 Rendimiento y Optimización
+
+- **Carga Progresiva**: Implementar lazy loading para componentes pesados
+- **Caché de Datos**: Almacenar temporalmente resultados frecuentes
+- **Paginación**: Limitar cantidad de elementos en listas largas
+- **Compresión de Imágenes**: Optimizar recursos visuales
+
+#### 5.2 Seguridad en Bubble.io
+
+- **Validación de Datos**: Verificar inputs antes de enviar a APIs
+- **Manejo de Tokens**: Almacenar tokens de forma segura
+- **Control de Acceso**: Verificar permisos antes de mostrar elementos sensibles
+- **Sanitización de Datos**: Prevenir XSS y otros ataques
+
+#### 5.3 Multi-Tenancy en Frontend
+
+- **Aislamiento Visual**: Cada tenant solo ve sus propios datos
+- **Header X-Tenant-ID**: Incluir en todas las llamadas API
+- **Personalización por Tenant**: Permitir logos, colores y dominios personalizados
+- **Roles Específicos**: Configuración de roles por tenant
+
+### 6. Pruebas Recomendadas
+
+#### 6.1 Pruebas Funcionales
+
+- **Flujos Completos**: Verificar todos los flujos de trabajo de principio a fin
+- **Validación de Formularios**: Probar casos límite y errores en inputs
+- **Integración con APIs**: Verificar correcta comunicación con todos los servicios
+- **Permisos y Roles**: Confirmar que las restricciones de acceso funcionan correctamente
+
+#### 6.2 Pruebas de Usabilidad
+
+- **Sesiones con Usuarios**: Observar cómo usuarios reales interactúan con la interfaz
+- **Análisis de Patrones**: Identificar puntos de fricción y optimizar
+- **A/B Testing**: Comparar diferentes diseños para funcionalidades clave
+- **Accesibilidad**: Verificar compatibilidad con lectores de pantalla y navegación por teclado
+
+#### 6.3 Pruebas de Rendimiento
+
+- **Carga de Páginas**: Medir tiempos de carga en diferentes condiciones
+- **Respuesta de UI**: Verificar fluidez en interacciones complejas
+- **Consumo de Recursos**: Monitorear uso de memoria y CPU en el navegador
+- **Escalabilidad**: Simular escenarios con grandes volúmenes de datos
+
+### 7. Integración con el Ecosistema Existente
+
+El frontend en Bubble.io debe integrarse perfectamente con todos los servicios backend:
+
+- **LangChain**: Configuración de agentes, modelos y prompts
+- **Tool Manager**: Gestión completa del ciclo de vida de herramientas
+- **RAG Module**: Carga, procesamiento y consulta de documentos
+- **User Management**: Administración de usuarios, roles y permisos
+- **Canales**: Configuración de adaptadores para diferentes plataformas
+- **Monitorización**: Visualización de métricas de Prometheus/Grafana
+
+### 8. Plan de Implementación
+
+1. **Fase 1: Estructura Básica y Autenticación** (3-5 días)
+   - Configurar proyecto en Bubble.io
+   - Implementar sistema de páginas y navegación
+   - Integrar Auth0 para login/registro
+   - Configurar tipos de datos principales
+
+2. **Fase 2: Gestión de Agentes y Herramientas** (5-7 días)
+   - Desarrollar listado y editor de agentes
+   - Implementar gestor de herramientas
+   - Crear formularios de configuración
+   - Integrar con APIs correspondientes
+
+3. **Fase 3: Gestión de Documentos y RAG** (3-5 días)
+   - Implementar uploader de documentos
+   - Desarrollar visualización de estado y progreso
+   - Crear interfaz de búsqueda y consulta
+   - Integrar con RAG Module
+
+4. **Fase 4: Canales y Configuración** (3-5 días)
+   - Desarrollar interfaces para cada canal
+   - Implementar formularios de configuración
+   - Crear sistema de notificaciones
+   - Integrar con adaptadores de canales
+
+5. **Fase 5: Usuarios, Roles y Analíticas** (5-7 días)
+   - Implementar gestión de usuarios y roles
+   - Desarrollar dashboards de analíticas
+   - Crear sistema de reportes
+   - Integrar con servicios de monitorización
+
+6. **Fase 6: Pruebas y Optimización** (3-5 días)
+   - Realizar pruebas funcionales completas
+   - Optimizar rendimiento y usabilidad
+   - Corregir bugs y problemas detectados
+   - Preparar documentación de usuario
+
+### 9. Próximos Pasos Después del Frontend
+
+1. **Pruebas de Integración End-to-End**: Verificar todo el flujo desde frontend hasta base de datos
+2. **Optimización de Rendimiento**: Ajustes finales basados en métricas reales
+3. **Documentación Técnica y de Usuario**: Manuales, guías y tutoriales
+4. **Onboarding de Clientes Beta**: Selección de primeros clientes para feedback
+5. **Iteración Basada en Feedback**: Mejoras rápidas según retroalimentación
+6. **Preparación para Lanzamiento**: Marketing, soporte y escalabilidad
+
+## Conclusión
+
+La implementación del frontend en Bubble.io representa la culminación de nuestros esfuerzos para crear una plataforma conversacional completa y accesible. Este componente permitirá a usuarios no técnicos aprovechar todo el poder de los servicios backend que hemos desarrollado, proporcionando una experiencia intuitiva y visual para la configuración y gestión de agentes conversacionales.
+
+Con la finalización del frontend, tendremos un MVP completo y funcional, listo para ser presentado a clientes potenciales y comenzar a generar ingresos. La arquitectura modular y el enfoque multi-tenant nos permitirán escalar rápidamente y adaptarnos a las necesidades específicas de cada cliente.
+
+¡Buena suerte con la implementación! Estoy disponible si necesitas aclaraciones adicionales o apoyo durante el desarrollo.
+
+===============================================================================================
+Fin del Documento de Contexto para Fase 1.8
+--------------------------------------------------
+
+===============================================================
+Actualización Reciente:
+- Se ha implementado y verificado el módulo RAG, con soporte completo para procesamiento de documentos, generación de embeddings y búsqueda semántica.
+- El código está disponible en GitHub (https://github.com/enkibotcorp/ragmodule.git) y se ha documentado su uso e integración.
+- Todos los servicios backend (LangChain, Tool Manager, RAG Module, User Management) están operativos y se han realizado pruebas de integración exitosas.
+- La infraestructura AWS está completamente configurada y lista para soportar el frontend.
+- Con estos avances, estamos listos para iniciar el desarrollo del frontend en Bubble.io, que será la interfaz visual para todos nuestros servicios.
+===============================================================

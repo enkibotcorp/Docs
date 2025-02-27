@@ -1,0 +1,123 @@
+﻿# Documento de Contexto para Fase 2.2: Monitorización y Observabilidad
+
+## 1. Introducción
+Este documento de contexto se utiliza para orientar el trabajo del equipo de desarrollo durante la Fase 2.2, enfocada en la implementación de monitorización y observabilidad. Se construye sobre los logros de la Fase 1.1, donde se estableció la infraestructura básica en AWS.
+
+## 2. Estado Actual de la Infraestructura
+
+### 2.1 API Gateway
+- ID: 39fqbjtkha
+- Nombre: Enkisys-API
+- Stage: prod
+- Endpoint: https://39fqbjtkha.execute-api.us-east-1.amazonaws.com/prod
+- Recursos configurados:
+  - /telegram/webhook (POST)
+  - Integración HTTP_PROXY hacia api.enkisys.com
+
+### 2.2 Router de Telegram
+- Repositorio: ~/enkisys/router/telegram
+- Componentes principales:
+  ```
+  ├── cmd/
+  │   ├── server/main.go    # Servidor principal
+  │   └── setup/main.go     # Configuración de webhook
+  ├── internal/
+  │   └── telegram/
+  │       └── handler.go    # Manejo de webhooks
+  └── .env                  # Configuración
+  ```
+- Variables de entorno:
+  ```
+  TELEGRAM_BOT_TOKEN=[configurado]
+  WEBHOOK_URL=https://39fqbjtkha.execute-api.us-east-1.amazonaws.com/prod/telegram/webhook
+  SQS_QUEUE_URL=https://sqs.us-east-1.amazonaws.com/183631308789/telegram-router-queue
+  ```
+
+### 2.3 AWS SQS
+- Queue Name: telegram-router-queue
+- URL: https://sqs.us-east-1.amazonaws.com/183631308789/telegram-router-queue
+- Configuración:
+  - VisibilityTimeout: 30 segundos
+  - Integrado con el router de Telegram para manejo asíncrono de mensajes
+
+### 2.4 Flujo de Datos Actual
+1. Telegram envía webhook a API Gateway
+2. API Gateway redirecciona a router Go
+3. Router Go procesa y envía a SQS
+4. Los mensajes quedan en cola para procesamiento asíncrono
+
+## 3. Objetivos de la Fase 2.2
+
+### 3.1 Implementación de Monitorización
+- Desplegar Prometheus para recolección de métricas
+- Configurar Grafana para visualización
+- Establecer métricas clave:
+  - Latencia de API Gateway
+  - Tasa de mensajes en SQS
+  - Uso de recursos del router
+
+### 3.2 Puntos de Monitorización Requeridos
+1. API Gateway:
+   - Latencia
+   - Tasa de errores
+   - Número de requests
+
+2. Router Go:
+   - Uso de CPU/Memoria
+   - Goroutines activas
+   - Tiempo de procesamiento
+
+3. SQS:
+   - Longitud de cola
+   - Tiempo de procesamiento
+   - Mensajes fallidos
+
+## 4. Comandos y Scripts Relevantes
+
+### 4.1 Gestión del Router
+```bash
+# Iniciar el router
+cd ~/enkisys/router/telegram
+go run cmd/server/main.go
+
+# Configurar webhook
+go run cmd/setup/main.go
+```
+
+### 4.2 Monitoreo de SQS
+```bash
+# Verificar mensajes en cola
+aws sqs receive-message \
+    --queue-url https://sqs.us-east-1.amazonaws.com/183631308789/telegram-router-queue \
+    --max-number-of-messages 10
+```
+
+## 5. Consideraciones para la Implementación
+
+### 5.1 Prioridades
+1. Establecer métricas básicas de salud del sistema
+2. Configurar alertas para condiciones críticas
+3. Crear dashboards para visualización en tiempo real
+
+### 5.2 Puntos de Atención
+- El router Go corre manualmente - considerar systemd o similar
+- No hay manejo de errores en SQS - implementar dead-letter queue
+- Falta logging estructurado para mejor observabilidad
+
+## 6. Próximos Pasos
+1. Desplegar Prometheus
+2. Configurar exporters para cada componente
+3. Establecer Grafana con dashboards básicos
+4. Implementar alerting
+
+## 7. Referencias
+- [Documento Maestro de Arquitectura](link)
+- [Plan de Implementación MVP](link)
+- [Contexto Fase 1.1](link)
+
+## 8. Notas Adicionales
+Este documento debe actualizarse con las configuraciones específicas de Prometheus y Grafana una vez implementadas, incluyendo:
+- URLs de acceso
+- Credenciales (en sistema seguro)
+- Configuraciones de alerting
+- Dashboards creados

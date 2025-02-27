@@ -1,0 +1,393 @@
+
+# Contexto 1.11: Implementación del Módulo de Herramientas (Frontend-Backend)
+
+## Resumen Ejecutivo (Actualizado)
+
+Hemos completado exitosamente la implementación del módulo de herramientas (Tools), integrando el frontend en React con el backend en Flask a través de AWS API Gateway. Este proceso presentó diversos desafíos técnicos relacionados con la configuración del proxy, el manejo de CORS, la estructura de la base de datos PostgreSQL y la comunicación entre servicios. A través de un enfoque metódico de resolución de problemas, logramos establecer un flujo completo de operaciones CRUD (Crear, Leer, Actualizar, Eliminar) para las herramientas, sentando las bases para la integración de los siguientes módulos.
+
+## Arquitectura Implementada (Actualizada)
+
+La arquitectura del módulo de herramientas se compone de:
+
+1. **Frontend (React/Vite)**:
+   - Alojado en AWS EC2 (IP: 34.229.243.239, puerto 5173)
+   - Componentes principales: `Tools.jsx`, `ToolForm.jsx`
+   - Servicios: `toolsService.js`, `api.js`, `config.js`
+   - Comunicación con backend a través de AWS API Gateway
+
+2. **AWS API Gateway**:
+   - ID: 39fqbjtkha
+   - Endpoint: https://39fqbjtkha.execute-api.us-east-1.amazonaws.com/prod
+   - Recursos configurados:
+     - `/tools` (ID: fcf8wg)
+     - `/tools/{proxy+}` (ID: 60b4ha)
+   - Integración HTTP_PROXY con el backend Flask
+
+3. **Backend (Flask)**:
+   - Alojado en la misma instancia AWS EC2 (IP: 34.229.243.239, puerto 5001)
+   - Estructura modular con Blueprint para rutas de herramientas
+   - Servicio PostgreSQL para persistencia de datos
+   - Middleware para validación de tenant
+   - CORS habilitado para permitir solicitudes desde cualquier origen
+
+4. **Base de Datos (PostgreSQL)**:
+   - Esquema multi-tenant con tablas específicas por tenant
+   - Estructura de tabla para herramientas con campos para configuración en formato JSONB
+
+## Desafíos y Soluciones (Actualizado)
+
+### 1. Configuración del Proxy en Vite
+
+**Desafío**: Inicialmente, las solicitudes del frontend al backend fallaban debido a problemas de configuración del proxy en Vite.
+
+**Solución**: 
+- Implementamos una configuración de proxy en `vite.config.js` para redirigir las solicitudes a la API.
+- Posteriormente, optamos por una conexión a través de API Gateway, eliminando la necesidad del proxy:
+```javascript
+// config.js
+export const API_BASE_URL = 'https://39fqbjtkha.execute-api.us-east-1.amazonaws.com/prod';
+```
+
+### 2. Problemas de CORS
+
+**Desafío**: Las solicitudes OPTIONS (preflight) eran rechazadas por el backend debido a la falta de configuración CORS adecuada, especialmente al usar API Gateway.
+
+**Solución**:
+- Implementamos CORS en el backend Flask:
+```python
+from flask_cors import CORS
+CORS(app, resources={r"/*": {"origins": "*"}})
+```
+- Modificamos el middleware de validación de tenant para permitir solicitudes OPTIONS sin requerir el encabezado X-Tenant-ID:
+```python
+def validate_tenant_header():
+    if request.method == 'OPTIONS':
+        return None
+    tenant_id = request.headers.get('X-Tenant-ID')
+    if not tenant_id:
+        return jsonify({"error": "Missing X-Tenant-ID header"}), 400
+    return None
+```
+- Configuramos CORS en API Gateway para los recursos `/tools` y `/tools/{proxy+}`, permitiendo los métodos GET, POST, PUT, DELETE y OPTIONS.
+
+### 3. Estructura de Tablas en PostgreSQL
+
+**Desafío**: Encontramos errores al intentar crear y acceder a tablas en PostgreSQL debido a nombres de tabla con caracteres especiales (guiones en los IDs de tenant).
+
+**Solución**:
+- Modificamos el servicio PostgreSQL para usar comillas dobles en los nombres de tablas:
+```python
+cursor.execute(f"""
+    CREATE TABLE IF NOT EXISTS "{tenant_id}_tools" (
+        id UUID PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        type VARCHAR(50) NOT NULL,
+        config JSONB DEFAULT '{{}}',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+""")
+```
+- Actualizamos todas las consultas SQL para mantener consistencia en el uso de comillas dobles.
+
+### 4. Inconsistencias en la Verificación de Tablas
+
+**Desafío**: Detectamos comportamiento inconsistente donde algunas operaciones reportaban que la tabla existía mientras otras indicaban lo contrario.
+
+**Solución**:
+- Implementamos el método `create_tools_table` para manejar la creación de tablas cuando no existen.
+- Estandarizamos la verificación de existencia de tablas en todos los métodos del servicio.
+
+### 5. Errores de Sintaxis en F-strings
+
+**Desafío**: Encontramos errores de sintaxis en la definición de valores por defecto para campos JSONB en PostgreSQL.
+
+**Solución**:
+- Corregimos la sintaxis de los f-strings duplicando las llaves para representar llaves literales:
+```python
+config JSONB DEFAULT '{{}}'  # Correcto
+config JSONB DEFAULT '{}'    # Incorrecto (interpretado como f-string vacío)
+```
+
+### 6. Configuración de API Gateway
+
+**Desafío**: La integración inicial de API Gateway no estaba correctamente configurada, causando errores 405 (Method Not Allowed) y problemas de CORS.
+
+**Solución**:
+- Corregimos la configuración de los recursos en API Gateway:
+  - Para `/tools`: Configuramos la integración para apuntar a `http://34.229.243.239:5001/tools`
+  - Para `/tools/{proxy+}`: Configuramos la integración para apuntar a `http://34.229.243.239:5001/tools/{proxy}`
+- Habilitamos CORS para ambos recursos
+- Desplegamos los cambios en el stage "prod"
+
+### 7. Cliente API en el Frontend
+
+**Desafío**: Inicialmente teníamos inconsistencias en cómo se realizaban las llamadas API desde el frontend, con mezcla de `fetch` y `axios`.
+
+**Solución**:
+- Estandarizamos el uso de axios para todas las llamadas API:
+```javascript
+// api.js
+import axios from 'axios';
+import { API_BASE_URL } from './config';
+
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: 10000,
+  headers: {
+    'Content-Type': 'application/json',
+    'X-Tenant-ID': 'f43aa807-3b35-4b97-8de5-bb45d9bd14a1'
+  },
+});
+
+// Interceptores para logging y manejo de errores
+// ...
+
+export default api;
+```
+
+- Implementamos un servicio específico para las operaciones de herramientas:
+```javascript
+// toolsService.js
+import api from './api';
+
+export const getTools = async () => {
+  try {
+    const response = await api.get('/tools');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching tools:', error);
+    throw error;
+  }
+};
+
+// Otras funciones CRUD...
+```
+
+## Implementación Detallada (Actualizada)
+
+### Frontend (React/Vite)
+
+#### 1. Configuración de API (config.js)
+
+```javascript
+// URL del API Gateway
+export const API_GATEWAY_URL = 'https://39fqbjtkha.execute-api.us-east-1.amazonaws.com/prod';
+
+// URL directa del servicio de herramientas (para pruebas)
+export const DIRECT_SERVICES = {
+  TOOLS: 'http://34.229.243.239:5001',
+};
+
+// Usar la dirección del API Gateway
+export const API_BASE_URL = API_GATEWAY_URL;
+
+export const ENDPOINTS = {
+  TOOLS: '/tools',
+  LANGCHAIN: '/langchain',
+  RAG: '/rag',
+  AUTH: '/auth',
+  CHANNELS: '/channels',
+  MONITORING: '/monitoring',
+  GRAFANA: '/grafana'
+};
+
+// IDs de recursos para referencia
+export const RESOURCE_IDS = {
+  ROOT: '1t74j7i6s4',
+  TOOLS: 'fcf8wg',
+  TOOLS_PROXY: '60b4ha',
+  // Otros recursos...
+};
+```
+
+#### 2. Cliente API (api.js)
+
+```javascript
+import axios from 'axios';
+import { API_BASE_URL } from './config';
+
+console.log('API base URL:', API_BASE_URL);
+
+// Create axios instance
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: 10000,
+  headers: {
+    'Content-Type': 'application/json',
+    'X-Tenant-ID': 'f43aa807-3b35-4b97-8de5-bb45d9bd14a1'
+  },
+});
+
+// Interceptores para logging
+api.interceptors.request.use(
+  config => {
+    console.log(`Sending ${config.method.toUpperCase()} request to: ${config.baseURL}${config.url}`);
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers['Authorization'] = `Bearer ${token}`;
+    }
+    return config;
+  },
+  error => {
+    console.error('Request error:', error);
+    return Promise.reject(error);
+  }
+);
+
+// Response interceptor for handling errors
+api.interceptors.response.use(
+  response => {
+    console.log(`Received response from ${response.config.url}:`, response.status);
+    return response;
+  },
+  error => {
+    console.error('API Error:', error);
+    return Promise.reject(error);
+  }
+);
+
+export default api;
+```
+
+#### 3. Servicio de Herramientas (toolsService.js)
+
+```javascript
+import api from './api';
+
+/**
+ * Obtiene todas las herramientas
+ * @returns {Promise<Array>} Lista de herramientas
+ */
+export const getTools = async () => {
+  try {
+    const response = await api.get('/tools');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching tools:', error);
+    throw error;
+  }
+};
+
+// Otras funciones CRUD...
+```
+
+### Backend (Flask)
+
+#### 1. Configuración Principal (app.py)
+
+```python
+from flask import Flask
+from flask_cors import CORS
+from dotenv import load_dotenv
+import os
+import logging
+from routes.tool_routes import tool_bp
+
+# Load environment variables
+load_dotenv()
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Create Flask app
+app = Flask(__name__)
+app.config['JSON_AS_ASCII'] = False
+CORS(app, resources={r"/*": {"origins": "*"}})
+
+# Register blueprints
+app.register_blueprint(tool_bp)
+
+# Ruta de prueba para verificar que la aplicación está funcionando
+@app.route('/', methods=['GET'])
+def health_check():
+    return {'status': 'ok', 'message': 'Tool Manager service is running'}
+
+# Imprimir todas las rutas disponibles
+with app.app_context():
+    logger.info("Available routes:")
+    for rule in app.url_map.iter_rules():
+        logger.info(f"{rule.endpoint}: {rule.methods} {rule}")
+
+if __name__ == '__main__':
+    port = int(os.environ.get("PORT", 5001))
+    logger.info(f"Starting Tool Manager service on port {port}")
+    app.run(host="0.0.0.0", port=port, debug=True)
+```
+
+#### 2. Rutas de Herramientas (tool_routes.py)
+
+```python
+from flask import Blueprint, request, jsonify
+from services.tool_service_postgres import ToolService
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Create Blueprint
+tool_bp = Blueprint('tools', __name__)
+
+@tool_bp.before_request
+def validate_tenant_header():
+    """
+    Validate that the X-Tenant-ID header is present in all requests,
+    except for OPTIONS requests which are part of CORS preflight.
+    """
+    # Permitir solicitudes OPTIONS (CORS preflight) sin el header
+    if request.method == 'OPTIONS':
+        return None
+        
+    tenant_id = request.headers.get('X-Tenant-ID')
+    if not tenant_id:
+        logger.error("Missing X-Tenant-ID header")
+        return jsonify({'error': 'Missing X-Tenant-ID header'}), 400
+
+# Rutas CRUD...
+```
+
+## Lecciones Aprendidas (Actualizado)
+
+1. **Importancia de la Configuración CORS**: La configuración adecuada de CORS es crucial para aplicaciones distribuidas, especialmente cuando se utiliza API Gateway como intermediario.
+
+2. **Manejo de Nombres de Tablas en PostgreSQL**: Los nombres de tablas que contienen caracteres especiales deben estar entre comillas dobles en PostgreSQL.
+
+3. **Verificación Consistente de Recursos**: Es importante mantener una lógica consistente para verificar la existencia de recursos (tablas, registros) en todos los métodos del servicio.
+
+4. **Configuración Correcta de API Gateway**: La configuración de las integraciones en API Gateway debe ser precisa, especialmente para recursos proxy, asegurando que las rutas apunten correctamente a los endpoints del backend.
+
+5. **Estandarización de Cliente API**: Utilizar un cliente API consistente (como axios) con interceptores facilita el manejo de errores, logging y la inclusión de headers comunes.
+
+6. **Seguridad en API Gateway**: Aunque actualmente estamos usando un tenant ID fijo para pruebas, la arquitectura está preparada para implementar autenticación y autorización adecuadas.
+
+7. **Sintaxis de F-strings en Python**: Es necesario duplicar las llaves (`{{}}`) cuando se desea incluir llaves literales en un f-string.
+
+## Próximos Pasos
+
+1. **Implementación del Módulo de Autenticación**:
+   - Integrar Auth0 para gestión de usuarios y autenticación
+   - Implementar rutas protegidas en el frontend y backend
+   - Configurar manejo de tokens JWT
+   - Reemplazar el tenant ID fijo por uno dinámico basado en la autenticación
+
+2. **Desarrollo del Módulo de Agentes**:
+   - Crear componentes frontend para la gestión de agentes
+   - Implementar backend para almacenar configuraciones de agentes
+   - Integrar con el módulo de herramientas para asignar herramientas a agentes
+   - Conectar con el servicio LangChain para la creación y gestión de agentes conversacionales
+
+## Conclusión
+
+La implementación del módulo de herramientas a través de API Gateway representa un hito significativo en el desarrollo de nuestra plataforma. Hemos establecido un patrón de comunicación seguro y escalable entre el frontend y el backend, que servirá como base para los siguientes módulos.
+
+Siguiendo nuestra metodología de desarrollo, el próximo paso lógico es implementar la autenticación de usuarios antes de proceder con la integración de LangChain y la creación de agentes. Esto nos permitirá:
+
+1. Probar la plataforma con diferentes tenants desde el principio
+2. Evitar refactorizaciones posteriores para incluir la lógica de autenticación
+3. Diseñar los siguientes módulos con la seguridad como consideración principal
+4. Mantener una gestión consistente de los headers de autenticación y tenant ID
+
+Con esta base sólida, estaremos bien posicionados para avanzar hacia un sistema completo de gestión de agentes conversacionales con múltiples integraciones y capacidades.

@@ -1,0 +1,45 @@
+Documento de Contexto para Fase 1.3: Integración con LangChain y Actualización de la Arquitectura
+===============================================================================================
+
+1. Introducción
+---------------
+En esta fase (1.3) se inicia la integración del motor conversacional basado en LangChain. Se parte de la infraestructura establecida en las fases anteriores (Fase 1.1: Configuración del Entorno en AWS; Fase 1.2: Monitorización y Observabilidad) y se prepara el terreno para incorporar la lógica de negocio conversacional. Aunque en fases anteriores se implementaron servicios como Prometheus, Grafana y API Gateway para monitorización, en esta fase se concentrará el esfuerzo en integrar LangChain, definiendo el esquema de comunicación y la orquestación de herramientas.
+
+2. Estado Actual y Logros
+--------------------------
+- Se configuró la infraestructura básica en AWS, incluyendo instancias, API Gateway, y contenedores Docker para los servicios de monitorización.
+- Se implementaron servicios utilizando Docker Compose, con HTTPS habilitado para los subdominios:
+ • analytics.enkisys.com (Grafana) 
+ • prometheus.enkisys.com (API Gateway para Prometheus),
+  utilizando certificados SSL obtenidos mediante Certbot.
+- La arquitectura actual permite la monitorización y exposición segura de estos servicios y deja abierta la integración de la lógica de negocio.
+
+3. Objetivos de la Fase 1.3
+---------------------------
+- Desarrollar el servicio de integración con LangChain, encargado de la orquestación de la lógica conversacional y de gestionar la interacción con herramientas y APIs internas.
+- Crear y configurar el entorno de desarrollo para el servicio LangChain, estableciendo las dependencias y metodología necesarias.
+- Actualizar la documentación y el contexto para guiar futuras integraciones, incluyendo la eventual actualización del API Gateway para integrar la lógica de negocio.
+
+4. Tareas Pendientes y Siguientes Pasos
+----------------------------------------
+- Crear el entorno de desarrollo para LangChain: se creará la carpeta "langchain" en la raíz del proyecto donde se instalarán las dependencias necesarias (Python, SDKs, frameworks, etc.).
+- Desarrollar el primer módulo funcional del motor conversacional, que recibirá solicitudes, procesará la lógica conversacional y devolverá respuestas.
+- Integrar gradualmente este módulo con otros servicios (por ejemplo, API Gateway, monitorización y herramientas externas).
+- Revisar y actualizar la configuración del API Gateway para que, en futuras fases, gestione tanto los servicios de monitorización como la lógica de negocio.
+- Configurar un pipeline CI/CD para el servicio LangChain siguiendo la metodología agile utilizada en fases anteriores.
+
+5. Consideraciones Finales
+---------------------------
+- Este documento se actualizará conforme se avance en la integración de LangChain y en la integración de la lógica de negocio a través del API Gateway.
+- La modularidad de la arquitectura permite extender y actualizar el sistema sin afectar los servicios ya implementados.
+- Se mantendrá la documentación centralizada, la cual servirá de referencia para futuros desarrollos e integraciones con otros LLMs y equipos.
+
+Referencias:
+- Documento de Contexto Fase 1.1
+- Documento de Contexto Fase 1.2
+- Documento Maestro de Arquitectura
+- Plan de Implementación MVP
+
+===============================================================================================
+Fin del Documento de Contexto para la Fase 1.3
+-------------------------------------------------- 

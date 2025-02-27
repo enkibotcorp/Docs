@@ -1,0 +1,104 @@
+/* Documento de Contexto para Fase 1.6: Implementación del Módulo RAG y Evolución del Ecosistema
+===============================================================================================
+
+1. Introducción
+---------------
+En esta fase (1.6) nos enfocamos en la implementación del módulo RAG (Retrieval-Augmented Generation) para enriquecer las respuestas de los agentes conversacionales con información contextual. Esta fase se construye sobre los logros de las fases anteriores, particularmente la implementación exitosa del Módulo Tools (Fase 1.4) y la integración con LangChain (Fase 1.3), estableciendo un ecosistema más completo y funcional para la plataforma conversacional.
+
+2. Estado Actual y Logros
+--------------------------
+- **Módulo Tools Implementado y Verificado**: Se ha desarrollado y probado exitosamente el servicio de gestión de herramientas (Tool Manager) que permite a los clientes crear, leer, actualizar y eliminar herramientas a través de una API RESTful. Este módulo soporta multi-tenancy, garantizando el aislamiento de datos entre diferentes clientes.
+  
+- **Estructura Multi-Tenant Establecida**: Se ha definido y probado el modelo de aislamiento por tenant, utilizando el encabezado `X-Tenant-ID` para identificar al cliente en cada solicitud. Esto permite que cada tenant solo acceda a sus propias herramientas.
+
+- **Integración con LangChain**: El motor conversacional basado en LangChain está operativo y puede invocar herramientas externas. Se ha implementado soporte multilingüe, permitiendo que el endpoint `/chat` acepte un parámetro `language` para seleccionar la plantilla de prompt adecuada.
+
+- **Infraestructura Base**: La infraestructura en AWS está configurada, incluyendo instancias EC2, API Gateway, y servicios de monitorización (Prometheus, Grafana).
+
+3. Objetivos de la Fase 1.6
+---------------------------
+- **Implementar el Módulo RAG**: Desarrollar un servicio que utilice ChromaDB para almacenar y recuperar información contextual, enriqueciendo las respuestas de los agentes conversacionales.
+
+- **Integrar RAG con el Motor Conversacional**: Modificar el servicio LangChain para consultar el módulo RAG cuando sea necesario, incorporando el contexto recuperado en las respuestas.
+
+- **Preparar la Migración a PostgreSQL**: Establecer la estructura de datos y las consultas necesarias para migrar del almacenamiento en memoria a PostgreSQL cuando la base de datos multi-tenant esté disponible.
+
+- **Ampliar las Capacidades de Prueba**: Desarrollar casos de prueba más complejos que validen la integración entre Tools, RAG y el motor conversacional.
+
+4. Plan de Desarrollo y Siguientes Pasos
+-----------------------------------------
+- **Implementar ChromaDB**: Configurar ChromaDB como servicio para almacenar y recuperar información contextual. Esto incluye:
+  - Definir la estructura de los documentos y embeddings
+  - Implementar endpoints para indexar y consultar información
+  - Establecer mecanismos de aislamiento multi-tenant
+
+- **Desarrollar el Servicio RAG**: Crear un nuevo módulo que:
+  - Reciba consultas del motor conversacional
+  - Busque información relevante en ChromaDB
+  - Formatee y devuelva el contexto recuperado
+
+- **Integrar RAG con LangChain**: Modificar el endpoint `/chat` para:
+  - Detectar cuándo se necesita información contextual adicional
+  - Consultar el servicio RAG
+  - Incorporar el contexto recuperado en la plantilla de prompt
+
+- **Preparar la Migración a PostgreSQL**: Definir:
+  - Esquemas de tablas para Tools, Agents y configuraciones RAG
+  - Consultas SQL para operaciones CRUD
+  - Estrategia de migración desde almacenamiento en memoria
+
+- **Desarrollar Casos de Prueba Integrales**: Crear escenarios que validen:
+  - La invocación de herramientas desde el agente
+  - La recuperación de contexto mediante RAG
+  - La generación de respuestas que combinen ambas fuentes de información
+
+5. Arquitectura del Módulo RAG
+------------------------------
+El módulo RAG se integrará en la arquitectura existente de la siguiente manera:
+
+- **ChromaDB**: Almacenará documentos y sus embeddings, permitiendo búsquedas semánticas.
+  
+- **Servicio RAG**: Actuará como intermediario entre el motor conversacional y ChromaDB, procesando consultas y formateando resultados.
+
+- **Integración con LangChain**: El motor conversacional consultará el servicio RAG cuando detecte que se necesita información contextual adicional.
+
+- **Aislamiento Multi-Tenant**: Cada tenant tendrá su propia colección en ChromaDB, garantizando el aislamiento de datos.
+
+6. Consideraciones Técnicas
+---------------------------
+- **Vectorización de Consultas**: Se utilizarán modelos de embeddings para convertir consultas de texto en vectores que puedan compararse con los documentos almacenados.
+
+- **Relevancia y Ranking**: Se implementarán algoritmos para clasificar los resultados por relevancia, asegurando que solo se incorpore la información más pertinente.
+
+- **Gestión de Memoria**: ChromaDB puede consumir recursos significativos, por lo que se establecerán límites y políticas de caché.
+
+- **Seguridad**: Se implementarán mecanismos para validar que las consultas solo accedan a información del tenant correspondiente.
+
+7. Integración con el Módulo Tools
+----------------------------------
+El módulo RAG complementará al módulo Tools de la siguiente manera:
+
+- **Tools**: Proporciona funcionalidades activas, permitiendo a los agentes realizar acciones específicas (consultar saldos, actualizar preferencias, etc.).
+
+- **RAG**: Proporciona información pasiva, enriqueciendo las respuestas con contexto adicional (políticas, documentación, historiales, etc.).
+
+- **Combinación**: El motor conversacional podrá utilizar ambos módulos en una misma interacción, por ejemplo, consultando el saldo de un cliente (Tool) y explicando las políticas de uso (RAG).
+
+8. Conclusión
+-------------
+La implementación del módulo RAG representa un avance significativo en la capacidad de la plataforma para proporcionar respuestas contextualizadas y precisas. Junto con el módulo Tools ya implementado, establece las bases para un ecosistema conversacional completo y flexible, capaz de adaptarse a las necesidades específicas de cada cliente.
+
+Esta fase se enfoca en enriquecer la experiencia conversacional mediante la incorporación de información contextual, complementando las capacidades de acción proporcionadas por el módulo Tools. El resultado será una plataforma más potente y versátil, capaz de manejar interacciones más complejas y naturales.
+
+===============================================================================================
+Fin del Documento de Contexto para Fase 1.6
+--------------------------------------------------
+
+===============================================================
+Actualización Reciente:
+- Se ha implementado y verificado el módulo Tools, con soporte completo para operaciones CRUD y aislamiento multi-tenant.
+- El código está disponible en GitHub (https://github.com/enkibotcorp/toolmodule.git) y se ha documentado su uso e integración.
+- La base de datos PostgreSQL multi-tenant está en desarrollo por parte del equipo de infraestructura y estará disponible próximamente.
+- Con estos avances, estamos listos para iniciar el desarrollo del módulo RAG, que complementará al módulo Tools proporcionando capacidades de recuperación de información contextual.
+===============================================================
+*/

@@ -1,0 +1,26 @@
+﻿Para encadenar los documentos de contexto entre fases y mantener una continuidad sin perder información, te recomiendo la siguiente metodología:
+1. Documento de Contexto Finalizado (Snapshot):
+ Al finalizar cada fase (por ejemplo, Fase 1.1), genera un "Resumen de Contexto Fase 1.1" que contenga:
+
+   * Un resumen de todas las configuraciones implementadas (scripts, servicios desplegados, configuraciones de AWS, etc.).
+   * Las decisiones clave, lecciones aprendidas y cualquier desviación respecto al plan original.
+   * Referencias al Documento Maestro de Arquitectura y al Plan de Implementacion actualizado.
+   *    2. Changelog o Registro de Cambios:
+ Incorpora una sección que liste los cambios importantes realizados durante la fase. Esto te ayudará a visualizar rápidamente qué se agregó o modificó, y servirá como base para la siguiente fase.
+
+   3. Instrucciones para el LLM al Iniciar la Nueva Fase:
+ Al comenzar la Fase 1.2, proporciona al LLM el "Resumen de Contexto Fase 1.1" junto con las instrucciones específicas de la nueva fase. Por ejemplo, podrías iniciar tu prompt con algo como:
+
+
+"Utiliza el siguiente resumen de contexto de la Fase 1.1, que incluye las configuraciones y decisiones tomadas, y genera un Documento de Contexto para la Fase 1.2 que se centre en [detalles específicos de la fase 1.2]. Asegurate de mantener la continuidad y no repetir información ya documentada, a menos que sea necesario para entender las nuevas tareas."
+
+
+   4. Repositorio Centralizado de Documentos de Contexto:
+ Mantén un repositorio (puede ser un archivo compartido, una wiki interna, o un sistema de control de versiones) donde almacenes cada versión finalizada del documento de contexto. Así, siempre podrás hacer referencia a la versión más reciente y al historial completo de cambios.
+
+   5. Preguntas Clave para el LLM:
+
+      * "Con base en el contexto de la Fase 1.1, ¿cuáles son las dependencias o configuraciones que debemos mantener para la Fase 1.2?"
+      * "Resume los principales logros y decisiones de la Fase 1.1 para integrarlos en el documento de contexto de la Fase 1.2."
+      * "Genera un plan de acción actualizado para la Fase 1.2, partiendo del contexto ya definido en la Fase 1.1."
+Esta metodología te permitirá mantener una línea de continuidad clara y evitará tener que reexplicar todo en cada nueva fase. Así, cada documento de contexto se convierte en un eslabon de una cadena de conocimiento que se va actualizando y refinando a medida que avanzas en el proyecto.

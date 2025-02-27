@@ -1,0 +1,280 @@
+﻿DOCUMENTO MAESTRO DE ARQUITECTURA
+Version Integrada con Modulo de Tools y User Management
+Este documento describe la arquitectura tecnica de una plataforma conversacional de Inteligencia Artificial (SaaS), diseñada para que usuarios no tecnicos puedan crear y administrar agentes de IA en canales como WhatsApp, Telegram, email y telefonia. Se ha incorporado un modulo de herramientas (Tools) y un modulo de administracion de usuarios y roles (User Management) como parte fundamental del proyecto.
+________________
+
+
+1. Resumen General
+La plataforma se compone de los siguientes elementos clave:
+1. Frontend con Bubble.io
+ Permite a los usuarios definir, configurar y desplegar agentes conversacionales sin necesidad de programacion. Incluye formularios y vistas para editar prompts, seleccionar modelos, gestionar herramientas y asignar permisos.
+
+2. API Gateway
+ Centraliza y protege las solicitudes entrantes. Gestiona el enrutamiento hacia los servicios internos y garantiza la escalabilidad (serverless).
+
+3. Router de Canales (Python)
+ Orquesta la interaccion con los diferentes adaptadores de canales (WhatsApp, Telegram, email, telefonia) y utiliza colas de mensajeria (por ejemplo, AWS SQS) para manejar picos de carga.
+
+4. Motor Conversacional (LangChain)
+ Se encarga de la logica conversacional, seleccion de modelos de lenguaje (LLMs) y coordinacion del contexto. Invoca herramientas externas (Tools) cuando se requiere funcionalidad adicional.
+
+5. Modulo de Tools (Tool Manager)
+ Administra la creacion, actualizacion y lectura de las herramientas disponibles para los agentes. Se integra con LangChain para que cada agente conozca que herramientas tiene habilitadas.
+
+6. User Management
+ Permite crear y administrar roles y usuarios, asegurando el aislamiento de datos y la gestion de permisos en un entorno multi-tenant.
+
+7. Base de Datos Multi-Tenant
+ Almacena la informacion de cada cliente (tenant) en esquemas o instancias separadas (Aurora/RDS PostgreSQL), garantizando la privacidad y seguridad de los datos.
+
+8. Integraciones (Auth0, CRMs, Pagos)
+ Usa Auth0 para la autenticacion y autorizacion (OAuth2), permitiendo la conexion con sistemas CRM (Salesforce, HubSpot) y plataformas de pago (Stripe).
+
+9. Monitorizacion y Backups
+ Prometheus y Grafana para metricas y alertas. Snapshots en Aurora RDS y exportaciones a S3 (si aplica) para proteger la informacion critica.
+
+________________
+
+
+2. Modulos Principales
+2.1. Frontend con Bubble.io
+   * Descripcion:
+Interfaz visual construida con Bubble.io, que provee formularios y vistas para configurar los agentes, prompts, herramientas, canales y la gestion de usuarios.
+   * Puntos Clave:
+      * Los usuarios pueden definir la personalidad del agente, seleccionar el modelo de lenguaje y administrar los flujos conversacionales.
+      * Se visualiza la configuracion de Tools y se administran las credenciales de cada tenant.
+      * Incluye paneles para el User Management (creacion de roles y asignacion de permisos).
+2.2. API Gateway
+      * Descripcion:
+Servicio serverless (ej. AWS API Gateway) que recibe las solicitudes desde el frontend y otros clientes, gestionando la autenticacion y el enrutamiento hacia los microservicios internos.
+      * Puntos Clave:
+         * Maneja trafico cifrado (HTTPS/TLS).
+         * Define rutas para mensajeria, telefonia, integraciones, etc.
+         * Facilita la escalabilidad y el control de versiones de las APIs.
+2.3. Router de Canales (Python)
+         * Descripcion:
+Microservicio en Python que orquesta la interaccion con los canales de mensajeria (WhatsApp, Telegram, email, telefonia).
+         * Puntos Clave:
+            * Usa colas (ej. AWS SQS) para manejar picos de trafico y asegurar la entrega de mensajes.
+            * Encapsula la logica especifica de cada adaptador (por ejemplo, usar la API de WhatsApp, Telegram Bot API, SMTP para email, etc.).
+            * Se integra con el Motor Conversacional para enviarle las solicitudes y recibir las respuestas.
+2.4. Motor Conversacional (LangChain)
+            * Descripcion:
+Gestiona la logica de la conversacion, el estado (multiturno) y la seleccion de modelos de lenguaje. Tambien coordina el uso de herramientas (Tools) cuando se requiere una accion externa.
+            * Puntos Clave:
+               * Compatible con varios LLMs (GPT-4o mini, Gemini, Llama 3 local en GPU).
+               * Se conecta a ChromaDB para recuperar historiales y datos semanticos (RAG).
+               * Integra la informacion del Tool Manager para saber que herramientas estan disponibles para cada agente/tenant.
+2.5. Modulo de Tools (Tool Manager)
+               * Descripcion:
+Servicio o modulo interno que administra las herramientas disponibles para los agentes. Permite la creacion, actualizacion y eliminacion de Tools, asi como la asignacion de cada Tool a un tenant o agente.
+               * Puntos Clave:
+                  * Almacenamiento: La configuracion de cada Tool se guarda en la base de datos (Aurora/RDS).
+                  * Endpoints Protegidos: Solo usuarios con permisos adecuados pueden modificar la configuracion de Tools.
+                  * Integracion con LangChain: Al iniciar un agente, se consulta que Tools tiene habilitadas, y se generan wrappers en LangChain para que el agente las invoque (por ejemplo, un conector a un CRM).
+2.6. User Management
+                  * Descripcion:
+Modulo que gestiona la creacion de usuarios y roles, asegurando el control de acceso y la separacion de datos entre distintos clientes (tenants).
+                  * Puntos Clave:
+                     * Multi-Tenancy: Cada tenant tiene su propio conjunto de usuarios y roles, sin riesgo de colision con otros tenants.
+                     * Control de Acceso: Se pueden definir roles (admin, editor, viewer) y permisos para modificar Tools, Agents, Channels, etc.
+                     * Escalabilidad: Facilita la incorporacion de nuevos clientes y la asignacion de permisos a usuarios adicionales.
+2.7. Base de Datos Multi-Tenant
+                     * Descripcion:
+Utiliza Aurora/RDS PostgreSQL con estrategias de aislamiento (esquemas o instancias) para cada tenant.
+                     * Puntos Clave:
+                        * Seguridad: Aislamiento de la informacion para cada cliente.
+                        * Estructura: Tablas para usuarios, roles, configuraciones de Tools, logs, historiales de agentes, etc.
+                        * Backups: Snapshots automaticos y posibilidad de exportar datos a S3.
+2.8. Integraciones (Auth0, CRMs, Pagos)
+                        * Descripcion:
+Autenticacion y autorizacion centralizada (OAuth2) con Auth0, ademas de la conexion a CRMs como Salesforce o HubSpot y plataformas de pago como Stripe.
+                        * Puntos Clave:
+                           * OAuth2: Manejo seguro de tokens y scopes.
+                           * Mercado de Integraciones: Cada tenant puede habilitar la integracion que necesite, gestionando credenciales de manera independiente.
+2.9. Monitorizacion y Backups
+                           * Descripcion:
+Conjunto de servicios y practicas para vigilar el estado de la plataforma y salvaguardar la informacion.
+                           * Puntos Clave:
+                              * Prometheus y Grafana: Recopilan metricas (uso de LLM, latencia, errores, invocaciones a Tools) y generan alertas cuando se superan ciertos umbrales.
+                              * Backups:
+                              * Aurora/RDS: Snapshots automaticos de la base de datos.
+                              * ChromaDB: Exportaciones periodicas a almacenamiento externo (por ejemplo, S3) si se requiere persistir el historial conversacional a largo plazo.
+                              * Herramientas: Las tablas de Tools tambien se incluyen en la estrategia de respaldo.
+________________
+
+
+3. Diagrama de Arquitectura (Mermaid)
+A continuacion se presenta el diagrama en Mermaid, evitando acentos para prevenir errores de parseo:
+graph TD
+    %% FRONTEND
+    subgraph Frontend_Bubble_io
+        A1[Editor Visual - Prompts and Wizard - Bubble io] -->|API Calls| B1
+        A2[Optional Drag and Drop - Future Integration] -->|API Calls| B1
+    end
+
+
+    %% API GATEWAY
+    subgraph API_Gateway
+        B1[AWS API Gateway] -->|Route 1 Messaging| C1
+        B1 -->|Route 2 Telephony| C1
+        B1 -->|Route 3 Transactions| C1
+    end
+
+
+    %% ROUTER DE CANALES
+    subgraph Router_Canales
+        C1[Router Python] -->|WhatsApp| D1[WhatsApp Adapter]
+        C1 -->|Telegram| D2[Telegram Adapter]
+        C1 -->|Email| D3[Email Adapter]
+        C1 -->|Telephony| D4[Telephony Adapter]
+        C1 -->|Queue| SQS[AWS SQS]
+    end
+
+
+    %% MOTOR CONVERSACIONAL
+    subgraph Motor_Conversacional
+        E1[LangChain - Selection Backend] -->|GPT 4o mini| F1[GPT 4o mini]
+        E1 -->|Gemini| F2[Gemini]
+        E1 -->|Llama 3 GPU| F3[Llama 3]
+        E1 -->|Context| G1
+    end
+
+
+    %% TOOLS MANAGER
+    subgraph Tools_Manager
+        T1[Tool Manager - CRUD Tools]
+    end
+
+
+    %% BASE DE CONOCIMIENTOS
+    subgraph Base_Conocimientos
+        G1[ChromaDB - Historial and RAG] -->|RAG| E1
+    end
+
+
+    %% MARKETPLACE E INTEGRACIONES
+    subgraph Marketplace_Integraciones
+        H1[Auth0 - OAuth2] -->|CRM| I1[Salesforce]
+        H1 -->|CRM| I2[HubSpot]
+        H1 -->|Payments| I3[Stripe]
+    end
+
+
+    %% USER MANAGEMENT
+    subgraph User_Management
+        UM1[Roles and Permissions]
+    end
+
+
+    %% MONITORIZACION
+    subgraph Monitorizacion
+        J1[Prometheus] -->|Metrics| K1[Grafana]
+    end
+
+
+    %% BASE DE DATOS
+    subgraph Base_Datos
+        DB1[Aurora RDS PostgreSQL - Multi tenant]
+    end
+
+
+    %% CONEXIONES
+    B1 --> C1
+    C1 -->|Requests| E1
+    E1 -->|Tools| T1
+    T1 --> DB1
+    E1 -->|Queries| G1
+    E1 --> F1
+    E1 --> F2
+    E1 --> F3
+    C1 -->|Responses| B1
+    B1 -->|Responses| A1
+    J1 --> E1
+    J1 --> B1
+    J1 --> C1
+    J1 --> G1
+    J1 --> DB1
+    UM1 --> DB1
+    E1 --> H1
+
+
+    %% ESTILOS
+    classDef purple fill:#800080,stroke:#fff,color:#fff;
+    classDef teal fill:#008080,stroke:#fff,color:#fff;
+
+
+    class A1,A2,B1,C1,D1,D2,D3,D4,H1,I1,I2,I3,UM1 purple;
+    class E1,F1,F2,F3,G1,J1,K1,SQS,T1,DB1 teal;
+
+
+
+
+	Explicacion de los Componentes
+                              * Bubble.io Frontend (A): Interfaz no-code para configurar agentes, tools y user management.
+                              * AWS API Gateway (B): Punto de entrada que maneja las peticiones y redirige al Router.
+                              * Python Router (C): Coordina canales y envios de mensajes, integra SQS para picos de carga.
+                              * LangChain (D): Motor conversacional que gestiona el contexto y la interaccion con LLMs y Tools.
+                              * Tool Manager (TM): Administra las definiciones y credenciales de las herramientas, almacenadas en la DB.
+                              * ChromaDB (CH): Base de conocimientos e historiales conversacionales (RAG).
+                              * LLMs (GPT4o mini, Gemini, Llama 3 GPU): Modelos de lenguaje externos o locales.
+                              * Aurora RDS PostgreSQL (DB): Base de datos multi-tenant que guarda configuraciones, usuarios, roles y Tools.
+                              * Auth0 (AU): Gestion de autenticacion OAuth2, integracion con CRMs (SF, HB) y Stripe (ST).
+                              * Prometheus y Grafana (PR, GF): Monitoreo, recoleccion de metricas y visualizacion de alertas.
+________________
+
+
+4. Detalle de Implementacion
+4.1. Modulo de Tools
+                              1. Microservicio o Modulo Interno
+
+                                 * Responsable de CRUD (crear, leer, actualizar, eliminar) de las herramientas.
+                                 * Solo accesible por usuarios con rol apropiado.
+                                 2. Endpoints Protegidos
+
+                                    * Control de acceso definido en User Management, integracion con Auth0 para la autenticacion.
+                                    * Asegura que cada tenant solo vea sus propias herramientas.
+                                    3. Integracion con LangChain
+
+                                       * Al iniciar un agente, LangChain consulta el Tool Manager para cargar las herramientas habilitadas.
+                                       * Cada herramienta se representa como un wrapper que define como interactuar con la API o funcion correspondiente.
+4.2. User Management
+                                       1. Creacion de Roles y Usuarios
+
+                                          * Desde Bubble.io, un administrador puede crear roles (admin, editor, viewer) y asignar permisos especificos para cada modulo (Agents, Tools, Channels, etc.).
+                                          * Integracion con Auth0 si se requiere SSO o autenticacion social.
+                                          2. Multi-Tenancy Seguro
+
+                                             * Cada tenant (cliente) tiene un espacio de datos aislado en la DB.
+                                             * Los roles y usuarios se asocian a ese tenant, impidiendo que accedan a datos de otros clientes.
+                                             3. Escalabilidad
+
+                                                * Facilita la incorporacion de nuevos clientes y la creacion de usuarios adicionales, manteniendo la separacion de permisos y datos.
+4.3. Integracion con LangChain
+                                                1. Carga de Agentes
+                                                * Al definir un agente en Bubble.io, se especifican prompts, modelo de lenguaje y Tools disponibles.
+                                                2. Invocacion de Tools
+                                                * LangChain utiliza wrappers generados por el Tool Manager para ejecutar acciones externas (APIs, calculos, etc.).
+                                                3. Manejo de Contexto
+                                                * ChromaDB almacena el historial conversacional y la informacion semantica necesaria para RAG.
+4.4. Monitoreo y Backups
+                                                1. Prometheus y Grafana
+
+                                                   * Recolectan metricas de uso de Tools (numero de invocaciones, latencia, errores), consumo de tokens en LLMs, tiempo de respuesta, etc.
+                                                   * Configura alertas (por ejemplo, cuando la latencia supera cierto umbral).
+                                                   2. Backups
+
+                                                      * Aurora RDS: Snapshots automaticos para restaurar la base de datos en caso de fallo.
+                                                      * ChromaDB: Scripts de exportacion a S3 si se requiere retener historiales a largo plazo.
+                                                      * Tool Manager: Las tablas de Tools y configuraciones se incluyen en los snapshots de RDS.
+________________
+
+
+5. Conclusiones
+Con esta arquitectura:
+                                                      * Los usuarios administran sus agentes y herramientas mediante un frontend no-code (Bubble.io).
+                                                      * El modulo de Tools (Tool Manager) ofrece una gestion centralizada de las herramientas que los agentes pueden invocar.
+                                                      * User Management asegura la separacion de datos y permisos entre clientes (tenants), soportando un modelo escalable y seguro.
+                                                      * LangChain orquesta la conversacion, gestiona el contexto con ChromaDB y permite la seleccion dinamica de modelos de lenguaje (externos o locales).
+                                                      * Monitorizacion y Backups garantizan la resiliencia y el mantenimiento de la plataforma, asegurando la continuidad del servicio y la proteccion de la informacion.
+Esta propuesta cubre todas las necesidades identificadas para el MVP y establece una base solida para futuras expansiones, como la inclusion de nuevos modelos de lenguaje, integraciones adicionales o la orquestacion de tareas mas complejas.

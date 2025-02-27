@@ -1,0 +1,219 @@
+# Guía Completa para Implementación del Módulo RAG - Fase 1.7
+
+Estimado colega,
+
+Te comparto una guía detallada para implementar el módulo RAG (Retrieval-Augmented Generation), basada en nuestros avances actuales y el documento de contexto para la Fase 1.7. Este es el último componente crítico, junto con User Management, antes de pasar al desarrollo del frontend para completar nuestro MVP.
+
+## Contexto del Proyecto y Estado Actual
+
+Como puedes ver en el diagrama de arquitectura y el documento de contexto, hemos logrado implementar:
+
+1. **Motor Conversacional (LangChain)**: Backend de selección que gestiona diferentes modelos (GPT-4o mini, Gemini, Llama 3) y coordina funcionalidades de contexto, consultas y herramientas.
+
+2. **Tool Manager**: Servicio completamente funcional que gestiona el CRUD de herramientas con persistencia en PostgreSQL.
+
+3. **Arquitectura Multi-Tenant Robusta**: Cada tenant tiene su propio esquema en PostgreSQL (`tenant_[tenant_id]`), garantizando aislamiento de datos entre clientes.
+
+4. **Canales de Comunicación**: Adaptadores para WhatsApp, Telegram, Email y Telefonía, además de AWS SQS para mensajería asíncrona.
+
+5. **Infraestructura AWS**: Configuración completa incluyendo instancias EC2, API Gateway, y servicios de monitorización.
+
+Las pruebas han confirmado que el sistema puede realizar operaciones CRUD completas sobre herramientas, manteniendo el aislamiento de datos entre diferentes tenants, y que el motor conversacional puede invocar estas herramientas de manera efectiva.
+
+## Tu Misión: Implementar el Módulo RAG
+
+El módulo RAG es crucial para enriquecer las respuestas de los agentes con información contextual relevante. Siguiendo el mismo enfoque multi-tenant implementado en el módulo Tools, debes completar esta pieza final del ecosistema.
+
+### 1. Objetivos Específicos del Módulo RAG
+
+- Implementar un servicio que utilice ChromaDB para almacenar y recuperar información contextual
+- Mantener el aislamiento multi-tenant en todas las operaciones
+- Integrar completamente con LangChain para enriquecer respuestas
+- Optimizar el flujo de datos para minimizar latencia
+- Preparar para escalabilidad horizontal
+
+### 2. Arquitectura y Componentes
+
+#### 2.1 Componentes Principales
+
+- **API de Gestión de Documentos**: Endpoints para subir, actualizar y eliminar documentos por tenant
+- **Procesador de Documentos**: Para extracción, chunking, embedding y almacenamiento
+- **ChromaDB**: Base de datos vectorial para almacenar embeddings con colecciones separadas por tenant
+- **Integración con LangChain**: Para recuperar información relevante durante las conversaciones
+
+#### 2.2 Flujo de Datos
+
+1. **Ingesta de Documentos**:
+   - Cliente sube documento → API recibe → Procesador extrae texto → Chunking → Generación de embeddings → Almacenamiento en ChromaDB y metadatos en PostgreSQL
+
+2. **Recuperación de Información**:
+   - Usuario hace pregunta → LangChain detecta necesidad de contexto → Consulta al módulo RAG → RAG recupera información relevante → LangChain incorpora contexto en prompt → Generación de respuesta enriquecida
+
+### 3. Estructura de la Base de Datos
+
+#### 3.1 Tablas en PostgreSQL (por tenant)
+
+```sql
+CREATE TABLE documents (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id VARCHAR(255) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    file_path VARCHAR(255),
+    file_type VARCHAR(50),
+    status VARCHAR(50) DEFAULT 'processing',
+    metadata JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE chunks (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    document_id UUID REFERENCES documents(id),
+    content TEXT NOT NULL,
+    metadata JSONB,
+    embedding_id VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+#### 3.2 Estructura en ChromaDB
+
+- Colección por tenant: `tenant_{tenant_id}`
+- Metadatos por documento: `{document_id, chunk_id, position, source, ...}`
+- Embeddings generados con el modelo seleccionado (ej. OpenAI, Hugging Face)
+
+### 4. Implementación Detallada
+
+#### 4.1 Procesamiento de Documentos
+
+1. **Extracción de Texto**:
+   - Implementar soporte para múltiples formatos (PDF, DOCX, TXT, HTML)
+   - Utilizar bibliotecas como PyPDF2, python-docx, BeautifulSoup
+
+2. **Chunking Inteligente**:
+   - Dividir en fragmentos semánticamente coherentes (400-500 tokens)
+   - Mantener superposición parcial entre chunks para preservar contexto
+   - Considerar estructura del documento (párrafos, secciones)
+
+3. **Generación de Embeddings**:
+   - Utilizar modelos optimizados para embeddings (ej. OpenAI ada-002, BERT)
+   - Implementar procesamiento por lotes para eficiencia
+   - Considerar caché de embeddings para documentos frecuentes
+
+4. **Almacenamiento Optimizado**:
+   - Guardar metadatos en PostgreSQL para búsquedas estructuradas
+   - Almacenar embeddings en ChromaDB para búsquedas semánticas
+   - Implementar procesamiento asíncrono para documentos grandes
+
+#### 4.2 API RESTful
+
+Implementar los siguientes endpoints:
+
+```
+POST /documents - Subir nuevo documento
+GET /documents - Listar documentos
+GET /documents/{id} - Obtener documento específico
+DELETE /documents/{id} - Eliminar documento
+GET /documents/{id}/chunks - Listar chunks de un documento
+POST /search - Buscar información relevante
+```
+
+Cada endpoint debe validar el header `X-Tenant-ID` para garantizar el aislamiento multi-tenant.
+
+#### 4.3 Integración con LangChain
+
+Modificar el servicio LangChain para:
+
+1. **Detección de Necesidad de Contexto**:
+   - Analizar la consulta del usuario para determinar si requiere información contextual
+   - Implementar heurísticas o modelos ligeros para esta decisión
+
+2. **Recuperación de Información**:
+   - Consultar el módulo RAG con la query vectorizada
+   - Seleccionar los N chunks más relevantes (ajustable según modelo)
+   - Filtrar por relevancia usando distancia coseno o similares
+
+3. **Enriquecimiento de Prompts**:
+   - Incorporar la información recuperada en el prompt al LLM
+   - Estructurar el prompt para distinguir entre contexto y consulta
+   - Implementar técnicas de compresión para maximizar uso de tokens
+
+4. **Generación de Respuestas**:
+   - Instruir al modelo para citar fuentes cuando corresponda
+   - Implementar mecanismos para evitar alucinaciones
+   - Optimizar el formato de respuesta para diferentes canales
+
+### 5. Consideraciones Técnicas Críticas
+
+#### 5.1 Rendimiento y Escalabilidad
+
+- **Procesamiento Asíncrono**: Utilizar colas (RabbitMQ, AWS SQS) para procesar documentos grandes
+- **Caché Inteligente**: Implementar caché para consultas frecuentes y embeddings
+- **Particionamiento**: Diseñar para escalar horizontalmente (sharding por tenant)
+- **Monitorización**: Implementar métricas detalladas (latencia, uso de recursos, calidad)
+
+#### 5.2 Seguridad Multi-Tenant
+
+- **Aislamiento Estricto**: Garantizar que un tenant no pueda acceder a datos de otro
+- **Validación de Acceso**: Verificar permisos en cada operación
+- **Auditoría**: Registrar todas las operaciones para trazabilidad
+- **Encriptación**: Considerar encriptación de datos sensibles
+
+#### 5.3 Optimización de Recursos
+
+- **Gestión de Memoria**: Implementar políticas para ChromaDB (evitar OOM)
+- **Compresión de Embeddings**: Evaluar técnicas como PCA o cuantización
+- **Poda de Índices**: Mecanismos para eliminar información obsoleta
+- **Balanceo de Carga**: Distribuir procesamiento entre instancias
+
+### 6. Pruebas Recomendadas
+
+#### 6.1 Pruebas Funcionales
+
+- **Ingesta de Documentos**: Verificar procesamiento correcto de diferentes formatos
+- **Recuperación de Información**: Evaluar precisión y relevancia de resultados
+- **Aislamiento Multi-tenant**: Confirmar que cada tenant solo accede a sus datos
+- **Integración con LangChain**: Verificar enriquecimiento efectivo de respuestas
+
+#### 6.2 Pruebas de Rendimiento
+
+- **Latencia**: Medir tiempos de respuesta con diferentes cargas
+- **Throughput**: Evaluar capacidad de procesamiento concurrente
+- **Escalabilidad**: Verificar comportamiento con aumento de tenants/documentos
+- **Consumo de Recursos**: Monitorizar uso de CPU, memoria, almacenamiento
+
+#### 6.3 Pruebas de Integración End-to-End
+
+- **Flujo Completo**: Desde subida de documento hasta respuesta enriquecida
+- **Escenarios Mixtos**: Combinar uso de herramientas y RAG
+- **Multilingüe**: Verificar funcionamiento en diferentes idiomas
+- **Recuperación ante Fallos**: Comprobar comportamiento en escenarios de error
+
+### 7. Integración con el Ecosistema Existente
+
+El módulo RAG debe integrarse perfectamente con los componentes existentes:
+
+- **Complementariedad con Tools**: Mientras Tools permite acciones específicas, RAG enriquece respuestas con información contextual
+- **Flujo Optimizado con LangChain**: Establecer comunicación eficiente para minimizar latencia
+- **Consistencia Multi-tenant**: Seguir el mismo patrón de aislamiento implementado en Tools
+- **Monitorización Unificada**: Integrar con el sistema de métricas existente
+
+### 8. Próximos Pasos Después del RAG
+
+1. **Finalización del User Management**: Último servicio pendiente
+2. **Desarrollo del Frontend en Bubble.io**: Interfaz para gestión de herramientas, documentos y conversaciones
+3. **Pruebas de Integración Completas**: Verificar todo el flujo desde frontend hasta base de datos
+4. **Optimización de Rendimiento**: Ajustes finales basados en métricas reales
+5. **Documentación Técnica Completa**: Arquitectura, APIs, flujos de datos
+6. **Despliegue del MVP**: Preparación para demo con clientes potenciales
+
+## Conclusión
+
+La implementación del módulo RAG representa la culminación de nuestros esfuerzos para crear un ecosistema conversacional completo y potente. Siguiendo el mismo enfoque multi-tenant y los patrones establecidos en el módulo Tools, podrás implementar este componente crítico de manera consistente y efectiva.
+
+El resultado será una plataforma conversacional robusta, escalable y flexible, capaz de proporcionar respuestas contextualizadas y precisas, complementando las capacidades de acción proporcionadas por el módulo Tools.
+
+Con la finalización del módulo RAG y User Management, estaremos listos para desarrollar el frontend y completar nuestro MVP, ofreciendo una solución conversacional de alta calidad adaptada a las necesidades específicas de cada cliente.
+
+¡Buena suerte con la implementación! Estoy disponible si necesitas aclaraciones adicionales.

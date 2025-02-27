@@ -1,0 +1,48 @@
+/* Documento de Contexto para Fase 1.4: Integración del Módulo Tools y Pruebas Prácticas de RAG
+===============================================================================================
+
+1. Introducción
+---------------
+En esta fase se avanza en la integración del motor conversacional basado en LangChain, enfocándonos en dos aspectos clave:
+- La incorporación del Módulo Tools, que permitirá a cada cliente definir, administrar y utilizar herramientas personalizadas a través del frontend.
+- La preparación de casos prácticos para validar la integración de RAG (Retrieval-Augmented Generation), que enriquecerá las respuestas del agente con contexto adicional.
+
+2. Estado Actual
+----------------
+- Se cuenta con un motor conversacional funcional con endpoints para chat (/chat), pruebas (/test, /demo) y gestión multi-tenant de agentes y herramientas (/agents y /tools).
+- Los agentes y herramientas se almacenan temporalmente en memoria; próximo paso se migrará a una base de datos multi-tenant.
+
+3. Objetivos de la Fase
+---------------------------
+- **Integrar el Módulo Tools:** Desarrollar un servicio en el backend que permita a los clientes crear, visualizar, actualizar y eliminar _tools_. Esta integración se realizará mediante endpoints protegidos (consultas CRUD) y, a futuro, se conectará a la infraestructura de base de datos multi-tenant.
+- **Preparar Casos de Prueba Prácticos:**  
+  Proponer un caso de uso, por ejemplo, un chatbot para call center en el que, al recibir consultas como "¿Cuál es mi plan actual y saldo?", el agente invoque la herramienta _lookup_account_info_ para recuperar la información necesaria.
+- **Integración de RAG (Retrieval-Augmented Generation):**  
+  Se evaluará la posibilidad de incorporar un módulo RAG que use ChromaDB para almacenar y recuperar historiales, con lo que se enriquecerán las respuestas de los agentes. Sin embargo, se recomienda inicialmente focalizar en el servicio de Tools, ya que se alinea directamente con la posibilidad de que los clientes personalicen sus agentes.
+
+4. Plan de Desarrollo y Siguientes Pasos
+-----------------------------------------
+- **Actualizar este Documento de Contexto (Fase 1.4):** Confirmar la nueva estructura y objetivos, enfatizando el desarrollo del servicio de Tools.
+- **Implantar el Servicio de Tools:** Crear endpoints para CRUD de herramientas, que más adelante se integrarán con interfaces en el frontend (Bubble.io) y con la lógica de LangChain para la invocación de herramientas.
+- **Evaluar Integración de RAG:** Una vez se tenga el servicio de Tools estable, se puede comenzar la integración de módulos RAG para la recuperación de contexto, lo cual mejorará la calidad de las respuestas de los agentes.
+- **Implementar Soporte Multilingüe:**  
+  Integrar soporte para múltiples idiomas en el motor conversacional, permitiendo que el endpoint `/chat` acepte un parámetro `language` (por ejemplo, "es" para español, "en" para inglés, "fr" para francés).  
+  La implementación actual utiliza un diccionario de plantillas (`prompt_templates`) en el código, que selecciona automáticamente la plantilla de prompt correspondiente al idioma solicitado. Para agregar nuevos idiomas, se debe añadir una nueva entrada en este diccionario con:  
+    - El código del idioma (por ejemplo, "de" para alemán).  
+    - La plantilla de prompt específica para ese idioma, definida mediante la clase `PromptTemplate` de LangChain.  
+  Esto permite extender el soporte sin duplicar la lógica de generación de respuestas.
+
+5. Conclusión
+-------------
+Este documento establece las bases para avanzar en la integración del Módulo Tools, con la posibilidad de incorporar RAG posteriormente. La prioridad inicial es la creación del servicio de Tools, dado que es fundamental para que los clientes puedan personalizar y ampliar las capacidades de sus agentes. Posteriormente, se evaluará integrar RAG para mejorar el rendimiento y la contextualización de las respuestas.
+
+===============================================================================================
+Fin del Documento de Contexto para Fase 1.4
+--------------------------------------------------
+
+===============================================================
+Actualización Reciente:
+- Se ha consolidado la integración multi-tenant y se han realizado mejoras en la monitorización (Prometheus, Grafana, dashboards, Docker Compose).
+- Se ha añadido soporte para múltiples idiomas en el endpoint `/chat`. La lógica de generación de prompts utiliza un diccionario de plantillas, facilitando la adición de nuevos idiomas sin duplicar código.
+- Con estos avances, iniciaremos el desarrollo en la carpeta "enkisys/toolmodule" para implementar el módulo de Tools, seguido de la integración del módulo RAG (Retrieval-Augmented Generation) para enriquecer las respuestas del sistema.
+===============================================================

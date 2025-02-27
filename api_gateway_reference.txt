@@ -1,0 +1,36 @@
+# API Gateway Reference (ID: 39fqbjtkha)
+
+## Root Resources
+- Root: 1t74j7i6s4 (/)
+
+## Service Resources
+- LangChain: 917b3d (/langchain)
+  - Proxy: v1704w (/langchain/{proxy+})
+  
+- Tools: fcf8wg (/tools)
+  - Proxy: 60b4ha (/tools/{proxy+})
+  
+- RAG: 7qveez (/rag)
+  - Proxy: 2nck7z (/rag/{proxy+})
+  
+- Auth: sbsc2o (/auth)
+  - Proxy: yifxxw (/auth/{proxy+})
+  
+- Channels: 2f7bv2 (/channels)
+  - No proxy resource configured
+  
+- Monitoring: l00vgo (/monitoring)
+  - Proxy: cyh897 (/monitoring/{proxy+})
+  
+- Grafana: 1d3o62 (/grafana)
+  - Proxy: xsplyd (/grafana/{proxy+})
+
+## Other Resources
+- Telegram: mqkuts (/telegram)
+  - Webhook: jbwhb0 (/telegram/webhook)
+  
+- Telefonia: 352y9u (/telefonia)
+- Webhook: 7h07o5 (/webhook)
+- Mensajeria: 8y43rd (/mensajeria)
+- Transacciones: lp8yvx (/transacciones)
+

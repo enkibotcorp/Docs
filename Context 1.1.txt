@@ -1,0 +1,69 @@
+﻿Documento de Contexto para Fase 1.1: Configuracion del Entorno en AWS
+1. Introduccion
+Este documento de contexto se utiliza para orientar el trabajo del equipo de desarrollo (apoyado por distintos LLMs) durante la Fase 1.1 del Plan de Implementacion del MVP. La Fase 1.1 se centra en la preparacion e infraestructura en AWS, estableciendo las bases tecnicas necesarias para la implementacion del sistema completo.
+Referencias:
+* Documento Maestro de Arquitectura (integrado con Tools y User Management)
+* Plan de Implementacion MVP (fase 1: Preparacion e Infraestructura)
+________________
+
+
+2. Objetivos de la Fase 1.1
+* Establecer el entorno de AWS:
+Configurar las instancias y servicios iniciales que formaran la columna vertebral del sistema, tales como AWS API Gateway, instancias EC2 o contenedores para el router (Python) y AWS SQS para el manejo de picos de trafico.
+* Configurar el repositorio y CI/CD:
+Preparar un repositorio de codigo (Git) y configurar un pipeline de integracion continua/despliegue continuo (CI/CD) para permitir iteraciones rapidas.
+* Documentar la infraestructura inicial:
+Registrar la configuracion base para que en fases posteriores se pueda reutilizar y actualizar el contexto, evitando perdida de informacion y repeticiones.
+________________
+
+
+3. Alcance y Tareas Principales
+3.1. Configuracion del Entorno AWS
+   * AWS API Gateway:
+   * Crear un API Gateway que sera el punto de entrada para todas las solicitudes.
+   * Definir rutas iniciales (mensajeria, telefonia y transacciones).
+   * Instancias para el Router (Python):
+   * Desplegar instancias EC2 o contenedores (por ejemplo, con ECS o Fargate) para alojar el router.
+   * El router ya esta al 50% (soporta WhatsApp y Telegram); se preparan instancias que permitan escalar y completar el modulo.
+   * AWS SQS:
+   * Configurar una cola en AWS SQS para manejar los picos de trafico y asegurar la entrega de mensajes en caso de alta demanda.
+3.2. Configuracion del Repositorio y Pipeline CI/CD
+   * Repositorio de Codigo:
+   * Configurar un repositorio Git central para el proyecto (por ejemplo, en GitHub o AWS CodeCommit).
+   * Estructurar ramas de desarrollo y produccion acorde a la metodologia agile.
+   * Pipeline CI/CD:
+   * Implementar un pipeline utilizando herramientas como AWS CodeBuild/CodePipeline o GitHub Actions.
+   * Automatizar pruebas y despliegues iniciales para el router y servicios asociados.
+3.3. Seguridad y Monitorizacion Inicial
+   * Seguridad:
+   * Establecer roles y politicas de IAM en AWS para restringir el acceso a instancias, API Gateway y SQS.
+   * Configurar TLS en el API Gateway para asegurar el trafico.
+   * Monitorizacion Basica:
+   * Desplegar Prometheus y Grafana en instancias o contenedores para iniciar la recoleccion de metricas básicas desde el API Gateway, el router y la base de datos (cuando se configure).
+________________
+
+
+4. Instrucciones Especificas para el LLM
+   * Contexto Completo:
+Este documento se complementa con el Documento Maestro de Arquitectura y el Plan de Implementacion. Se espera que al trabajar en esta fase, se tenga en cuenta la integracion futura de otros modulos (Tools, User Management, Motor Conversacional, etc.) y que se mantenga una vision global del sistema.
+   * Resultados Esperados:
+      * Un entorno AWS inicial funcional que incluya API Gateway, instancias para el router y AWS SQS.
+      * Un pipeline CI/CD operativo para facilitar futuras actualizaciones.
+      * Documentacion clara de la configuracion realizada para referencia en fases posteriores.
+      * Formato y Entrega:
+Se requiere que el codigo y la configuracion se documente de manera clara (por ejemplo, en archivos README y scripts de despliegue). Cada cambio importante debe ir acompañado de comentarios y explicaciones para facilitar la migracion de contexto en futuras iteraciones.
+________________
+
+
+5. Notas Adicionales
+         * Actualizacion del Documento:
+Una vez completada la Fase 1.1, este documento de contexto se actualizara con los detalles concretos (scripts, configuraciones, versiones de servicios utilizados, etc.) y se reutilizara como base para comunicar el estado a nuevos LLMs que participen en fases posteriores.
+         * Enfoque Hackathon:
+Se prioriza la velocidad en la implementacion y la iteracion rapida. Es importante documentar brevemente cada decision y mantener el codigo modular para permitir ajustes sin afectar el sistema global.
+         * Feedback Continuo:
+El equipo debera actualizar y reciclar este documento de contexto conforme se avanza en cada subfase, para asegurar que toda la informacion relevante se mantenga centralizada y accesible.
+________________
+
+
+6. Conclusiones
+Este Documento de Contexto para la Fase 1.1 proporciona la base para la configuracion inicial del entorno en AWS, estableciendo los cimientos sobre los cuales se construira el resto de la plataforma. Se integra de forma dinamica con el Documento Maestro de Arquitectura y el Plan de Implementacion, permitiendo a los LLMs y al equipo de desarrollo trabajar con un contexto completo y actualizado en cada iteracion.
