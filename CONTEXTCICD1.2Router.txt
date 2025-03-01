@@ -1,0 +1,143 @@
+
+
+# ContextCICD1.2: Dockerización de Servicios de Router (WhatsApp, Email, Telegram)
+
+## Resumen de Cambios Implementados
+
+Hemos completado exitosamente la dockerización de tres servicios de router para diferentes canales de comunicación:
+
+1. **WhatsApp Router**: Servicio para manejar webhooks de WhatsApp Business API
+2. **Email Router**: Servicio para procesar comunicaciones por correo electrónico
+3. **Telegram Router**: Servicio para gestionar mensajes de Telegram Bot API
+
+## Cambios Técnicos Realizados
+
+### 1. Configuración de Puertos
+
+Para evitar conflictos con servicios existentes, configuramos los siguientes puertos:
+
+- WhatsApp Router: Puerto 8083 (cambiado desde 8080)
+- Email Router: Puerto 8084 (externamente) mapeado a 8080 (internamente)
+- Telegram Router: Puerto 8091
+
+### 2. Implementación de Modo de Prueba
+
+Añadimos un modo de prueba (`TEST_MODE`) que permite que los servicios se inicien sin necesidad de credenciales reales, facilitando:
+- Pruebas automatizadas
+- Integración continua (CI/CD)
+- Desarrollo local sin dependencias externas
+
+### 3. Scripts de Entrada Mejorados
+
+Mejoramos los scripts de entrada (`docker-entrypoint.sh`) para cada servicio con:
+- Validación condicional de variables de entorno
+- Manejo de dependencias configurable
+- Opciones para ignorar fallos en dependencias
+- Mejor logging para diagnóstico
+
+### 4. Docker Compose Unificado
+
+Creamos un archivo `docker-compose.yml` unificado que:
+- Configura los tres servicios con sus respectivas variables de entorno
+- Proporciona valores predeterminados para todas las variables
+- Establece healthchecks para monitoreo
+- Configura una red compartida para comunicación entre servicios
+
+## Estructura de Archivos
+
+```
+router/
+├── docker-compose.yml
+├── .env (opcional)
+├── whatsapp/
+│   ├── Dockerfile
+│   ├── docker-entrypoint.sh
+│   └── ... (código fuente)
+├── Email/
+│   ├── Dockerfile
+│   ├── docker-entrypoint.sh
+│   └── ... (código fuente)
+└── telegram/
+    ├── Dockerfile
+    ├── docker-entrypoint.sh
+    └── ... (código fuente)
+```
+
+## Comandos Útiles
+
+### Gestión de Contenedores
+
+```bash
+# Construir e iniciar todos los servicios
+cd ~/enkisys/router
+docker-compose up -d
+
+# Detener todos los servicios
+docker-compose down
+
+# Reconstruir imágenes
+docker-compose build
+
+# Ver estado de los contenedores
+docker ps
+```
+
+### Monitoreo de Logs
+
+```bash
+# Ver logs de WhatsApp Router
+docker logs router_whatsapp-router_1
+# o en tiempo real
+docker logs -f router_whatsapp-router_1
+
+# Ver logs de Email Router
+docker logs router_email-router_1
+# o en tiempo real
+docker logs -f router_email-router_1
+
+# Ver logs de Telegram Router
+docker logs router_telegram-router_1
+# o en tiempo real
+docker logs -f router_telegram-router_1
+
+# Ver logs de todos los servicios
+docker-compose logs
+# o en tiempo real
+docker-compose logs -f
+```
+
+## Consideraciones Importantes
+
+1. **Seguridad**: En producción, asegúrate de:
+   - Configurar correctamente las variables de entorno con tokens reales
+   - Desactivar el modo de prueba (`TEST_MODE=false`)
+   - Proteger los puertos expuestos con reglas de firewall adecuadas
+
+2. **Escalabilidad**: Los servicios están diseñados para escalar horizontalmente:
+   - Puedes ejecutar múltiples instancias detrás de un balanceador de carga
+   - Considera usar orquestadores como Kubernetes para gestión avanzada
+
+3. **Integración con AWS SQS**: Los servicios están configurados para enviar mensajes a colas SQS:
+   - Asegúrate de configurar correctamente las credenciales de AWS
+   - Verifica que las colas SQS existan y tengan los permisos adecuados
+
+4. **Webhooks**: Para que los servicios reciban eventos externos:
+   - Configura correctamente los webhooks en las respectivas plataformas (Meta, Telegram)
+   - Asegúrate de que los endpoints sean accesibles públicamente
+   - Considera usar un proxy inverso como Nginx para gestionar SSL y enrutamiento
+
+5. **Monitoreo**: Los servicios incluyen healthchecks básicos:
+   - Considera integrar con sistemas de monitoreo como Prometheus/Grafana
+   - Implementa alertas para fallos en los servicios
+
+## Próximos Pasos Recomendados
+
+1. Configurar variables de entorno reales para producción
+2. Implementar pruebas automatizadas para los endpoints
+3. Configurar webhooks en las plataformas externas
+4. Integrar con sistemas de monitoreo existentes
+5. Documentar APIs y flujos de datos para el equipo
+
+## Conclusión
+
+Los servicios de router ahora están correctamente dockerizados y listos para ser integrados en el pipeline de CI/CD. El modo de prueba facilita el desarrollo y las pruebas, mientras que la configuración flexible permite una fácil adaptación a diferentes entornos.

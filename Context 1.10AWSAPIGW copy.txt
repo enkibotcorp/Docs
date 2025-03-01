@@ -105,7 +105,7 @@ aws apigateway put-integration \
   --http-method ANY \
   --type HTTP_PROXY \
   --integration-http-method ANY \
-  --uri "http://34.229.243.239:PUERTO/" \
+  --uri "http://44.223.125.51:PUERTO/" \
   --passthrough-behavior WHEN_NO_MATCH
 ```
 
@@ -141,7 +141,7 @@ aws apigateway put-integration \
   --http-method ANY \
   --type HTTP_PROXY \
   --integration-http-method ANY \
-  --uri "http://34.229.243.239:PUERTO/{proxy}" \
+  --uri "http://44.223.125.51:PUERTO/{proxy}" \
   --passthrough-behavior WHEN_NO_MATCH \
   --request-parameters "integration.request.path.proxy=method.request.path.proxy"
 ```
@@ -232,3 +232,103 @@ aws apigateway get-resource --rest-api-id 39fqbjtkha --resource-id RESOURCE_ID
 ```bash
 aws apigateway get-rest-api --rest-api-id 39fqbjtkha
 ```
+CONSIDERAR LO SIGUIENTE AL CONECTAR SERVICOS DE API GATEWAY AL FRONT END Y backend<think>El usuario está pidiendo un resumen de los pasos que tomamos para configurar correctamente la integración API Gateway con su servicio backend. Específicamente, quiere documentar este proceso para usarlo más tarde con otros servicios como langchain.
+
+Basado en la información compartida, podemos ver que:
+
+1. Identificamos el ID del recurso `/tools` como `fcf8wg`
+2. Verificamos la integración actual del método ANY para ese recurso
+3. Actualizamos la integración para usar la URL correcta, apuntando a la IP interna del EC2 (`http://172.31.42.171:5001/tools`)
+4. Verificamos la configuración del método OPTIONS para CORS
+5. Confirmamos que los headers CORS estaban bien configurados en las respuestas del método OPTIONS
+6. Verificamos que el tipo de integración era HTTP_PROXY, lo que permite que las solicitudes pasen directamente al backend
+
+Voy a crear un resumen completo de estos pasos, incluyendo los comandos usados y la explicación de cada uno, para que el usuario pueda usar esto como referencia al configurar otros servicios.</think># Guía para configurar recursos en API Gateway correctamente
+
+Aquí está el resumen paso a paso de lo que hicimos para configurar el recurso `/tools` en API Gateway. Puedes usar esta guía como referencia para configurar otros recursos como `/langchain`:
+
+## 1. Identificar el recurso y su ID
+
+```bash
+aws apigateway get-resources --rest-api-id 39fqbjtkha
+```
+
+Este comando lista todos los recursos en tu API. Anota el ID del recurso que quieres configurar:
+- Para `/tools` es `fcf8wg`
+- Para `/langchain` es `917b3d` (según el listado anterior)
+
+## 2. Verificar la configuración actual del método ANY
+
+```bash
+aws apigateway get-method --rest-api-id 39fqbjtkha --resource-id fcf8wg --http-method ANY
+```
+
+## 3. Verificar y actualizar la integración para apuntar a la IP correcta
+
+```bash
+# Verificar la integración actual
+aws apigateway get-integration --rest-api-id 39fqbjtkha --resource-id fcf8wg --http-method ANY
+
+# Actualizar la integración para apuntar al servicio correcto en la EC2
+aws apigateway update-integration --rest-api-id 39fqbjtkha \
+    --resource-id fcf8wg \
+    --http-method ANY \
+    --patch-operations \
+    op=replace,path=/uri,value=http://172.31.42.171:5001/tools
+```
+
+Para langchain, usarías:
+```bash
+aws apigateway update-integration --rest-api-id 39fqbjtkha \
+    --resource-id 917b3d \
+    --http-method ANY \
+    --patch-operations \
+    op=replace,path=/uri,value=http://172.31.42.171:8000/langchain
+```
+
+## 4. Verificar la configuración de CORS (método OPTIONS)
+
+```bash
+# Verificar el método OPTIONS
+aws apigateway get-method --rest-api-id 39fqbjtkha --resource-id fcf8wg --http-method OPTIONS
+
+# Verificar la respuesta del método OPTIONS para configuración CORS
+aws apigateway get-method-response --rest-api-id 39fqbjtkha --resource-id fcf8wg --http-method OPTIONS --status-code 200
+```
+
+## 5. Asegurarse de que los headers CORS estén correctamente configurados
+
+Clave para la integración OPTIONS:
+- Debe ser de tipo MOCK
+- Debe incluir los headers de respuesta CORS:
+  - Access-Control-Allow-Headers: debe incluir 'X-Tenant-ID'
+  - Access-Control-Allow-Methods: debe incluir todos los métodos necesarios
+  - Access-Control-Allow-Origin: normalmente '*' para desarrollo
+
+Si necesitas actualizar la configuración CORS:
+```bash
+aws apigateway update-integration-response \
+    --rest-api-id 39fqbjtkha \
+    --resource-id RESOURCE_ID \
+    --http-method OPTIONS \
+    --status-code 200 \
+    --patch-operations op=replace,path=/responseParameters/method.response.header.Access-Control-Allow-Headers,value="'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Tenant-ID'"
+```
+
+## 6. Implementar los cambios
+
+Después de realizar cualquier cambio, debes implementar la API para que los cambios surtan efecto:
+
+```bash
+aws apigateway create-deployment --rest-api-id 39fqbjtkha --stage-name prod
+```
+
+## Puntos clave a recordar
+
+1. **Tipo de integración**: Usa HTTP_PROXY para métodos ANY para pasar las solicitudes directamente al backend.
+2. **URL de integración**: Debe apuntar a la IP interna correcta del EC2 y la ruta exacta del servicio.
+3. **Headers CORS**: Deben configurarse correctamente en el método OPTIONS para permitir solicitudes desde el navegador.
+4. **X-Tenant-ID**: Asegúrate de que este header se pase al backend en todos los métodos.
+5. **Implementación**: Siempre implementa después de hacer cambios.
+
+Este procedimiento debe funcionar para cualquier servicio que agregues a tu API Gateway, como `/langchain`, `/agents`, etc., ajustando las rutas y configuraciones específicas según sea necesario.

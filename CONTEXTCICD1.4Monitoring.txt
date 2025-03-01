@@ -1,0 +1,383 @@
+
+
+# ContextCICD 1.4: Implementación de Stack de Monitoreo con Prometheus y Grafana
+
+## Introducción
+
+Este documento detalla la implementación de un stack de monitoreo completo utilizando Prometheus, Grafana, Node Exporter y cAdvisor, todo orquestado con Docker Compose y expuesto a través de Nginx. El objetivo es proporcionar una solución robusta para monitorear infraestructura y aplicaciones.
+
+## Componentes del Stack
+
+1. **Prometheus**: Sistema de monitoreo y base de datos de series temporales
+2. **Grafana**: Plataforma de visualización y análisis
+3. **Node Exporter**: Exportador de métricas del sistema host
+4. **cAdvisor**: Análisis y monitoreo de contenedores
+5. **Nginx**: Proxy inverso para acceso unificado
+
+## Estructura de Directorios
+
+```
+monitoring/
+├── docker-compose.yml
+├── prometheus/
+│   └── prometheus.yml
+├── nginx/
+│   ├── nginx.conf
+│   └── analytics.conf
+└── grafana/
+    └── provisioning/
+```
+
+## Configuración de Docker Compose
+
+El archivo `docker-compose.yml` define todos los servicios necesarios:
+
+```yaml
+version: '3'
+
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./prometheus:/etc/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    ports:
+      - "9090:9090"
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    ports:
+      - "9100:9100"
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    ports:
+      - "8080:8080"
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-storage:/var/lib/grafana
+    depends_on:
+      - prometheus
+
+  nginx:
+    image: nginx:latest
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/analytics.conf:/etc/nginx/conf.d/analytics.conf:ro
+    depends_on:
+      - grafana
+      - prometheus
+
+volumes:
+  grafana-storage:
+```
+
+## Configuración de Prometheus
+
+El archivo `prometheus.yml` define los objetivos de scraping:
+
+```yaml
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+```
+
+## Configuración de Nginx
+
+### nginx.conf
+
+```nginx
+user  nginx;
+worker_processes  auto;
+
+error_log  /var/log/nginx/error.log notice;
+pid        /var/run/nginx.pid;
+
+events {
+    worker_connections  1024;
+}
+
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+
+    log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                      '$status $body_bytes_sent "$http_referer" '
+                      '"$http_user_agent" "$http_x_forwarded_for"';
+
+    access_log  /var/log/nginx/access.log  main;
+
+    sendfile        on;
+    keepalive_timeout  65;
+
+    include /etc/nginx/conf.d/*.conf;
+}
+```
+
+### analytics.conf
+
+```nginx
+server {
+    listen 80;
+    server_name monitoring.example.com;
+
+    location / {
+        proxy_pass http://grafana:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /prometheus/ {
+        proxy_pass http://prometheus:9090/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /health {
+        return 200 'healthy';
+        add_header Content-Type text/plain;
+    }
+}
+```
+
+## Pasos de Implementación
+
+### 1. Preparación del Entorno
+
+```bash
+# Crear directorios necesarios
+mkdir -p monitoring/prometheus monitoring/nginx
+
+# Crear volumen para Grafana
+docker volume create --name=grafana-storage
+```
+
+### 2. Creación de Archivos de Configuración
+
+```bash
+# Configuración de Prometheus
+cat > monitoring/prometheus/prometheus.yml << 'EOF'
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+EOF
+
+# Configuración de Nginx
+cat > monitoring/nginx/nginx.conf << 'EOF'
+user  nginx;
+worker_processes  auto;
+
+error_log  /var/log/nginx/error.log notice;
+pid        /var/run/nginx.pid;
+
+events {
+    worker_connections  1024;
+}
+
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+
+    log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                      '$status $body_bytes_sent "$http_referer" '
+                      '"$http_user_agent" "$http_x_forwarded_for"';
+
+    access_log  /var/log/nginx/access.log  main;
+
+    sendfile        on;
+    keepalive_timeout  65;
+
+    include /etc/nginx/conf.d/*.conf;
+}
+EOF
+
+cat > monitoring/nginx/analytics.conf << 'EOF'
+server {
+    listen 80;
+    server_name monitoring.example.com;
+
+    location / {
+        proxy_pass http://grafana:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /prometheus/ {
+        proxy_pass http://prometheus:9090/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /health {
+        return 200 'healthy';
+        add_header Content-Type text/plain;
+    }
+}
+EOF
+```
+
+### 3. Despliegue del Stack
+
+```bash
+# Iniciar los servicios
+cd monitoring
+docker-compose up -d
+```
+
+### 4. Solución de Problemas Comunes
+
+#### Problema: Error de montaje de volúmenes
+
+Si encuentras errores como:
+```
+ERROR: for prometheus Cannot start service prometheus: failed to create task for container: failed to create shim task: OCI runtime create failed: runc create failed: unable to start container process: error during container init: error mounting "/home/ubuntu/enkisys/monitoring/prometheus/prometheus.yml" to rootfs at "/etc/prometheus/prometheus.yml": mount /home/ubuntu/enkisys/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml (via /proc/self/fd/6), flags: 0x5000: not a directory: unknown: Are you trying to mount a directory onto a file (or vice-versa)? Check if the specified host path exists and is the expected type
+```
+
+Solución:
+```bash
+# Verificar la estructura de directorios
+ls -la prometheus/
+
+# Corregir permisos y recrear directorios
+sudo chown -R $(whoami):$(whoami) prometheus/
+sudo rm -rf prometheus/
+mkdir -p prometheus
+
+# Recrear archivos de configuración
+cat > prometheus/prometheus.yml << 'EOF'
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+EOF
+```
+
+#### Problema: Error de red
+
+Si encuentras errores como:
+```
+ERROR: error while removing network: network monitoring_default id 96eb6510ff42e5b6d6b424fd5c95631f4e46ea799952f5d611d8c6df01c5e3d9 has active endpoints
+```
+
+Solución:
+```bash
+# Detener contenedores que usan la red
+docker stop $(docker ps -q --filter network=monitoring_default)
+
+# Forzar eliminación de contenedores
+docker rm -f $(docker ps -a -q --filter network=monitoring_default)
+
+# Reiniciar Docker si es necesario
+sudo systemctl restart docker
+```
+
+#### Problema: Volumen externo no encontrado
+
+Si encuentras errores como:
+```
+ERROR: Volume grafana-storage declared as external, but could not be found. Please create the volume manually using `docker volume create --name=grafana-storage` and try again.
+```
+
+Solución:
+```bash
+# Crear el volumen manualmente
+docker volume create --name=grafana-storage
+```
+
+## Verificación del Despliegue
+
+```bash
+# Verificar el estado de los contenedores
+docker-compose ps
+
+# Verificar logs
+docker-compose logs nginx
+docker-compose logs grafana
+docker-compose logs prometheus
+```
+
+## Acceso a los Servicios
+
+- **Grafana**: http://[IP-servidor]:80 (a través de Nginx)
+- **Prometheus**: http://[IP-servidor]:80/prometheus/
+- **Directamente a Grafana**: http://[IP-servidor]:3000
+- **Directamente a Prometheus**: http://[IP-servidor]:9090
+- **Node Exporter**: http://[IP-servidor]:9100
+- **cAdvisor**: http://[IP-servidor]:8080
+
+## Configuración de Grafana
+
+1. Acceder a Grafana (http://[IP-servidor]:80)
+2. Iniciar sesión con las credenciales predeterminadas:
+   - Usuario: admin
+   - Contraseña: admin
+3. Añadir Prometheus como fuente de datos:
+   - Configuración > Data Sources > Add data source > Prometheus
+   - URL: http://prometheus:9090
+   - Guardar y probar la conexión
+4. Importar dashboards predefinidos o crear personalizados
+
+## Conclusión
+
+Este stack de monitoreo proporciona una solución completa para la observabilidad de infraestructura y aplicaciones. La combinación de Prometheus para la recolección de métricas y Grafana para la visualización ofrece una potente herramienta para el monitoreo en tiempo real y el análisis de tendencias.
+
+La configuración modular permite añadir fácilmente más exportadores o personalizar los dashboards según las necesidades específicas del proyecto.

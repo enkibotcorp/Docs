@@ -10,7 +10,7 @@ Hemos completado exitosamente la implementación del módulo de herramientas (To
 La arquitectura del módulo de herramientas se compone de:
 
 1. **Frontend (React/Vite)**:
-   - Alojado en AWS EC2 (IP: 34.229.243.239, puerto 5173)
+   - Alojado en AWS EC2 (IP: 44.223.125.51, puerto 5174)
    - Componentes principales: `Tools.jsx`, `ToolForm.jsx`
    - Servicios: `toolsService.js`, `api.js`, `config.js`
    - Comunicación con backend a través de AWS API Gateway
@@ -24,7 +24,7 @@ La arquitectura del módulo de herramientas se compone de:
    - Integración HTTP_PROXY con el backend Flask
 
 3. **Backend (Flask)**:
-   - Alojado en la misma instancia AWS EC2 (IP: 34.229.243.239, puerto 5001)
+   - Alojado en la misma instancia AWS EC2 (IP: 44.223.125.51, puerto 5001)
    - Estructura modular con Blueprint para rutas de herramientas
    - Servicio PostgreSQL para persistencia de datos
    - Middleware para validación de tenant
@@ -116,8 +116,8 @@ config JSONB DEFAULT '{}'    # Incorrecto (interpretado como f-string vacío)
 
 **Solución**:
 - Corregimos la configuración de los recursos en API Gateway:
-  - Para `/tools`: Configuramos la integración para apuntar a `http://34.229.243.239:5001/tools`
-  - Para `/tools/{proxy+}`: Configuramos la integración para apuntar a `http://34.229.243.239:5001/tools/{proxy}`
+  - Para `/tools`: Configuramos la integración para apuntar a `http://44.223.125.51:5001/tools`
+  - Para `/tools/{proxy+}`: Configuramos la integración para apuntar a `http://44.223.125.51:5001/tools/{proxy}`
 - Habilitamos CORS para ambos recursos
 - Desplegamos los cambios en el stage "prod"
 
@@ -177,7 +177,7 @@ export const API_GATEWAY_URL = 'https://39fqbjtkha.execute-api.us-east-1.amazona
 
 // URL directa del servicio de herramientas (para pruebas)
 export const DIRECT_SERVICES = {
-  TOOLS: 'http://34.229.243.239:5001',
+  TOOLS: 'http://44.223.125.51:5001',
 };
 
 // Usar la dirección del API Gateway
@@ -391,3 +391,57 @@ Siguiendo nuestra metodología de desarrollo, el próximo paso lógico es implem
 4. Mantener una gestión consistente de los headers de autenticación y tenant ID
 
 Con esta base sólida, estaremos bien posicionados para avanzar hacia un sistema completo de gestión de agentes conversacionales con múltiples integraciones y capacidades.
+It works! 🎉😭🎉 Yes, it finally works!  All CRUD operations (Create, Read, Update, Delete) are functioning correctly.  Let's break down *exactly* what fixed it, and why, so you have clear notes for the future.
+
+**The Saga of Errors (and Their Solutions):**
+
+This debugging journey involved a series of interconnected issues, each building upon the previous one. Here's a chronological breakdown:
+
+1.  **Initial `KeyError: 0` (and `NameError: name 'logger' is not defined`):**
+
+    *   **Problem:** The original code was trying to access the result of the table existence check (`SELECT EXISTS ...`) using `result[0]`. This worked *sometimes* (when the query returned a simple tuple), but failed with a `KeyError: 0` when it returned a `RealDictRow` object (which happens when the table doesn't exist yet).  The `NameError` was a simple missing import and logger configuration.
+    *   **Solution:**
+        *   Imported the `logging` module and configured a logger.
+        *   Changed the table existence check to: `table_exists = result['exists'] if result and 'exists' in result else False`. This correctly handles both `RealDictRow` and tuple results.
+
+2.  **`psycopg2.errors.DuplicateTable: relation "tools" already exists`:**
+
+    *   **Problem:** Even with the `KeyError` fixed, the code was *still* trying to create the `tools` table every time, even if it already existed. This was due to a race condition: if two requests to create a tool for the same tenant arrived simultaneously, both might pass the (now corrected) existence check *before* the first request had finished creating the table.
+    *   **Solution:** Used `CREATE TABLE IF NOT EXISTS "tenant_{tenant_id}".tools (...)`. This makes the table creation operation *idempotent* – it only creates the table if it doesn't already exist, eliminating the race condition.  We also removed the explicit `SELECT EXISTS` check, as it was now redundant.
+
+3.  **`psycopg2.errors.InvalidSchemaName: schema "tenant_..." does not exist`:**
+
+    *   **Problem:** This was the *crucial* missing piece. The code was trying to create the `tools` *table* within a tenant-specific schema (like `tenant_f43aa807-3b35-4b97-8de5-bb45d9bd14a1`), but it *never actually created the schema itself*. The schemas were assumed to exist, but they didn't.
+    *   **Solution:** Added code to `create_tool` to *first* check if the schema exists (using `SELECT EXISTS(SELECT 1 FROM information_schema.schemata WHERE schema_name = %s)`) and create it using `CREATE SCHEMA "schema_name"` if it doesn't.  This ensures that the schema is always present before we try to create the table within it.
+
+4.  **`psycopg2.ProgrammingError: can't adapt type 'UUID'`:**
+
+    *   **Problem:** PostgreSQL doesn't automatically know how to handle Python's `uuid.UUID` objects. We were passing `tool_id` (a UUID) and `tenant_id` (which should also be a UUID) directly to the `cur.execute` method in the `INSERT` statement.
+    *   **Solution:** Explicitly converted the `UUID` objects to strings using `str(tool_id)` and `str(tenant_id)` before passing them as parameters to `cur.execute`. This provides `psycopg2` with a data type it can understand. We also updated the `get_tool`, `update_tool` and `delete_tool` methods.
+
+**Key Concepts and Best Practices (for your notes):**
+
+*   **Schema Management:** In a multi-tenant database, you *must* explicitly create the tenant-specific schemas.  Don't assume they exist.  The best place to do this is either:
+    *   **On-Demand:**  In the function that creates resources within the schema (like we did with `create_tool`).
+    *   **During Tenant Onboarding:** In a separate tenant provisioning process (if you have one).
+
+*   **`CREATE TABLE IF NOT EXISTS`:** This is your best friend for creating tables in a multi-user or multi-threaded environment. It avoids race conditions and makes your code more robust.
+
+*   **`CREATE SCHEMA IF NOT EXISTS`:** Similar to `CREATE TABLE IF NOT EXISTS`, this is useful for ensuring schemas exist before you try to use them.
+
+*   **UUID Handling:**  When working with UUIDs in `psycopg2`, it's generally best to convert them to strings before passing them as query parameters.
+
+*   **Schema Name Quoting:** *Always* enclose schema names (and table names, if they might contain special characters) in double quotes in your SQL queries. This prevents errors if your tenant IDs or table names contain hyphens, spaces, or other characters that have special meaning in SQL.  Example: `\"tenant_{tenant_id}\".tools`
+
+*   **Idempotency:**  Design your database operations to be *idempotent* whenever possible. This means that running the same operation multiple times has the same effect as running it once.  `CREATE TABLE IF NOT EXISTS` and `CREATE SCHEMA IF NOT EXISTS` are examples of idempotent operations.
+
+*   **Race Conditions:** Be aware of race conditions, especially in multi-threaded or multi-user applications.  Think about what might happen if two requests try to modify the same data at the same time.
+
+*   **Error Handling:**  Use `try...except` blocks to catch potential errors, log them (using the `logging` module), and handle them gracefully (e.g., by rolling back database transactions).
+
+*   **Connection Pooling:** Use a connection pool (like `psycopg2.pool.ThreadedConnectionPool`) to manage database connections efficiently.  This avoids the overhead of creating a new connection for every request.
+
+* **Testing with curl:** Using `curl` is a great way to test the API directly.
+
+By following these principles, you can build robust and reliable database interactions in your Python applications. You've now got a solid foundation for your tool management service!
+

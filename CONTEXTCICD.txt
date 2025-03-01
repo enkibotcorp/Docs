@@ -1,0 +1,141 @@
+A continuación se presenta un documento de contexto diseñado para capturar nuestra estrategia para la integración del pipeline CI/CD y la dockerización completa (oportuna) de los microservicios que componen la plataforma. Este documento recoge las dudas que planteaste sobre el despliegue en AWS, el manejo de puertos y redes internas, y establece un plan de trabajo para la integración final de todos los componentes usando GitHub Actions, Docker, y Docker Compose.
+
+---
+
+## Contexto: Pipeline CI/CD y Dockerización de Microservicios
+
+### 1. Introducción
+
+Este documento define la estrategia y el plan de acción para dockerizar todos los microservicios (excepto _monitoring_ y _ms-auth_, que ya cuentan con Docker) y desplegarlos en la instancia EC2 de AWS de forma aislada para cada entorno (producción, staging, dev1 y dev2) mediante un pipeline CI/CD basado en GitHub Actions.  
+El objetivo es garantizar que:
+
+- Cada microservicio se construya correctamente (con sus tests unitarios y de integración).
+- Se levanten contenedores aislados que se comuniquen mediante redes internas (definidas en nuestro archivo docker-compose).
+- La integración y el despliegue se ejecuten con seguridad empleando API Gateway para enrutar el tráfico a los distintos entornos, evitando tener que configurar decenas de políticas y puertos externos.
+
+### 2. Objetivos del Pipeline CI/CD y Dockerización
+
+1. **Construcción y Validación de Imágenes:**
+   - Realizar el checkout de cada repositorio.
+   - Construir la imagen Docker a partir de su Dockerfile (o crearlo si no existe, aplicable para microservicios como LangChain, Router, ragmodule y toolmodule si fuera el caso).
+   - Ejecutar tests unitarios/integración en la imagen construida.
+   
+2. **Pruebas de Integración:**
+   - Levantar todos los microservicios de forma conjunta usando un archivo docker-compose maestro.
+   - Ejecutar health checks en cada contenedor (por ejemplo, un endpoint `/health`).
+   - Validar la comunicación entre servicios (por ejemplo, que el Tool Manager se comunique correctamente con la base de datos).
+
+3. **Despliegue Seguro y Aislado en AWS:**
+   - En la instancia EC2 se desplegarán contenedores para cada entorno (producción, staging, dev1, dev2) de forma aislada.  
+   - Cada entorno podrá estar mapeado en diferentes puertos internos o utilizando rutas/stages en un único API Gateway para reducir la cantidad de reglas en el grupo de seguridad.
+   - Se implementarán mecanismos de rollback y notificación en caso de fallos en el despliegue.
+
+4. **Automatización en GitHub Actions:**
+   - Configurar workflows que dispare cada push o merge en las ramas correspondientes (Main, Staging, Dev1, Dev2).
+   - Cada workflow realizará el checkout, la construcción de la imagen, ejecución de tests, despliegue con docker-compose y conexión vía SSH a nuestro host EC2 utilizando los Secrets configurados.
+
+### 3. Arquitectura y Estrategia de Despliegue
+
+#### a) Estructura de la Plataforma
+
+A nivel de carpetas, la estructura del proyecto en `~/enkisys` es la siguiente:
+
+- **Docs/** → Documentación interna y contextos.
+- **aws/** → Scripts y configuraciones para AWS (por ejemplo, API Gateway).
+- **frontend/** → Frontend en React/Vite.
+- **langchain/** → Servicio de LangChain y lógica conversacional.
+- **ms-auth/** → Microservicio de autenticación (dockerizado).
+- **router/** → Router de Canales (Python o Go).
+- **ragmodule/** → Módulo RAG para manejo de documentos y embeddings.
+- **toolmodule/** → Módulo de Herramientas (Tools) (Flask basado).
+- **monitoring/**, **nginx/**, etc.
+
+#### b) Estrategia de Despliegue en AWS
+
+- **API Gateway y Stages:**  
+  En lugar de crear múltiples API Gateways y abrir numerosos puertos externos en el grupo de seguridad, se recomienda utilizar un único API Gateway configurado con distintos *stages* (prod, staging, dev1, dev2). Cada stage apuntaría internamente a un conjunto de contenedores desplegados en distintos puertos, pero el gateway abstraerá esos detalles y expondrá un endpoint único para cada entorno.
+
+- **Asignación de Puertos y Redes Internas:**  
+  - **Puertos:** Cada microservicio se ejecutará en un puerto interno definido en su Dockerfile (por ejemplo, el Tool Manager en el puerto 5001). Luego, en el archivo `docker-compose.yml` que usemos para cada entorno, se mapearán estos puertos a números diferentes en el host (o se dejará que API Gateway haga el enrutamiento a nivel interno).
+  - **Redes Internas:** Dentro del `docker-compose.yml` se define una red (o se utilizan redes por defecto) que permite que los contenedores se comuniquen entre sí mediante nombres de servicio (por ejemplo, si el servicio *toolmodule* se llama “tools”, otros contenedores pueden comunicar con “tools:5001”). Esto facilita la integración y evita la necesidad de usar direcciones IP fijas o exponer cada servicio públicamente.
+
+#### c) Consideraciones de Seguridad
+
+- **Grupos de Seguridad en AWS:**  
+  Se recomienda minimizar la exposición de puertos públicos. Con el uso de API Gateway y de un reverse proxy (por ejemplo, Nginx), solo será necesario abrir los puertos que realmente se usen para la comunicación pública (HTTPS), mientras que los contenedores se comunicarán de forma privada en la red interna.
+
+- **API Gateway y Stages:**  
+  Con un único API Gateway se evitan configuraciones complejas y se centraliza el control de tráfico, además de permitir el uso de autenticación, manejo de CORS y enrutamiento basado en stage.
+
+### 4. Pasos a Seguir y Tareas Inmediatas
+
+#### A) Revisión y Dockerización de Microservicios
+
+1. **Identificar Servicios Pendientes de Dockerización:**  
+   - Revisar cada repositorio y confirmar la existencia de Dockerfile.  
+   - Plataformas a revisar: `langchain/`, `router/`, `ragmodule/`, `toolmodule/`  
+   - Los servicios _ms-auth_ y _monitoring_ ya se encuentran dockerizados, pero se revisará su integración en el compose maestro.
+
+2. **Crear o Actualizar Dockerfiles:**
+   - Para cada servicio en Python: usar un base image como `python:3.9-slim`, instalar dependencias y definir el comando de inicio.
+   - Para servicios en Go (si aplica, como el router): utilizar un Dockerfile multi-stage.
+   - Verificar con un `docker build . -t <nombre_imagen>` y ejecutar localmente usando `docker run`.
+
+#### B) Configuración del Arquero Maestro (docker-compose.yml)
+
+1. Crear un archivo `docker-compose.yml` central que defina:
+   - Servicios para `frontend`, `langchain`, `ms-auth`, `router`, `ragmodule`, `toolmodule`, y otros (nginx, monitoring si es necesario).
+   - Variables de entorno y mapeo de puertos para cada uno de los entornos (podemos tener distintos archivos por entorno, ej. `docker-compose.prod.yml`, `docker-compose.staging.yml`, etc.).
+   - Una red interna (ej. `myapp_net`) que permita la comunicación entre contenedores mediante nombres de servicio.
+
+2. Incluye los health checks y dependencias (usando `depends_on`) para asegurar un correcto levantamiento del ambiente de integración.
+
+#### C) Integración en el Pipeline CI/CD de GitHub Actions
+
+1. Crear o actualizar workflows para que:
+   - Ejecuten el checkout del repositorio.
+   - Construyan la imagen Docker de cada microservicio.
+   - Levanten un entorno usando docker-compose (en un contenedor o máquina virtual) para ejecutar tests end-to-end.
+   - En caso de éxito, conecten vía SSH a la instancia EC2 y desplieguen el ambiente correspondiente para el stage (usando comandos como `docker-compose up -d --build`).
+   - Incluyan mecanismos de rollback y notificaciones en caso de fallo.
+
+#### D) Configuración del API Gateway para Diferentes Stages
+
+1. **Uso de Stages y Rutas:**  
+   - Configurar un único API Gateway (como el ya existente con ID `39fqbjtkha`) y crear stages para producción, staging, dev1 y dev2.
+   - Cada stage se configurará para enrutar las solicitudes al conjunto correspondiente de contenedores. Esto permitirá que, a nivel público, se tenga un endpoint distinto para cada entorno sin tener que abrir múltiples puertos en la instancia EC2.
+
+2. **Reglas y Políticas:**  
+   - Aprovechar la configuración de integraciones HTTP_PROXY en el API Gateway para mapear internamente a distintas rutas o puertos.
+   - Esto minimiza la necesidad de modificar manualmente políticas de seguridad en el grupo de seguridad de AWS, ya que el tráfico público se centraliza en el API Gateway.
+
+### 5. Conclusión y Próximos Pasos
+
+Este documento de contexto establece nuestro enfoque para lograr:
+
+- La dockerización individual de todos los microservicios pendientes.
+- La integración y comunicación mediante redes internas definidas en `docker-compose.yml`.
+- El uso de un único API Gateway, configurado con distintos stages para los entornos (producción, staging, dev1, dev2), evitando la exponencia manual de puertos y políticas de seguridad.
+- La orquestación del pipeline CI/CD en GitHub Actions que garantizará la construcción, testeo y despliegue automatizado de la plataforma.
+
+**Preguntas Clave Resueltas:**
+
+- **¿Se deben abrir puertos y configurar políticas de seguridad para cada entorno?**  
+  No necesariamente de forma individual. La idea es aprovechar un único API Gateway con stages para redirigir el tráfico a contenedores internos ubicados en una red privada, evitando la apertura masiva de puertos en la instancia.
+
+- **¿Qué son las redes internas en Docker Compose?**  
+  Se trata de la red (o redes) definidas en el archivo `docker-compose.yml` que permiten que los contenedores se comuniquen entre sí mediante sus nombres de servicio. Esto permite que, incluso si un contenedor se expone en un puerto diferente en el host, internamente los demás servicios puedan acceder a él usando el nombre de servicio y el puerto interno configurado.
+
+---
+
+Con este documento de contexto como guía, podemos proceder a trabajar en los primeros pasos:
+1. Verificar y actualizar los Dockerfiles de cada microservicio pendiente.
+2. Crear un `docker-compose.yml` maestro que defina la orquestación completa para los diferentes entornos.
+3. Configurar y probar localmente el pipeline CI/CD en GitHub Actions.
+4. Revisar la configuración del API Gateway para implementar stages y reducir la complejidad de políticas de seguridad.
+
+Este documento servirá de referencia para los LLMs y el equipo de desarrollo en las próximas fases. Avancemos con la dockerización y la integración de CI/CD según lo planteado.
+
+---
+
+*Este es el Documento de Contexto para el Pipeline CI/CD y Dockerización, que integra detalles técnicos y estratégicos para orientar la siguiente fase del proyecto.*
